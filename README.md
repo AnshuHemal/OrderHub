@@ -1,36 +1,153 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# OrderHub
+
+> **Take orders. Fire tickets. Close tabs.**
+
+OrderHub is a modern, full-featured Cafe & Restaurant POS system — built as the **Odoo Cafe POS** project implementation.
+
+---
+
+## What is it?
+
+OrderHub is a web-based Point of Sale system for cafes and restaurants. It covers the complete front-of-house and back-of-house workflow:
+
+- Visual floor plan with real-time table status
+- Order management (dine-in, takeaway, delivery)
+- Kitchen display system (KDS)
+- Menu & inventory management
+- Billing, payments, bill splitting, tips
+- Reports and analytics
+
+---
+
+## Logo
+
+The **OrderHub** logo is inspired by TREXO's iconic "O" motif — a rounded rectangle ring that represents a **hub** (center dot connected to four directions), symbolizing the central order-routing system of a cafe.
+
+```
+╭──────╮
+│  ·─·  │   ← The "O" ring (from TREXO) = the Hub
+│  │ │  │
+│  ·─·  │   → Center dot = the order point
+╰──────╯
+```
+
+---
+
+## Tech Stack
+
+| Layer | Technology |
+|---|---|
+| Frontend | **Next.js 16** (App Router) |
+| Backend API | **NestJS** |
+| Database | **PostgreSQL** via **Neon DB** (serverless) |
+| ORM | **Prisma 7** |
+| Media Storage | **Cloudinary** |
+| Auth | **Better Auth** (or NextAuth) |
+| UI Components | **shadcn/ui** (new-york, zinc base) |
+| Styling | **Tailwind CSS v4** |
+| Animations | **Motion** (motion/react) |
+| Icons | **Lucide React** |
+| Forms | **react-hook-form** + **Zod** |
+| State | **Zustand** (planned) |
+| Real-time | **WebSockets** via NestJS (planned) |
+
+---
+
+## Project Structure
+
+```
+orderhub/
+├── src/
+│   ├── app/
+│   │   ├── (auth)/           # /login, /signup
+│   │   ├── (pos)/            # POS interface — floor plan, orders
+│   │   ├── (kitchen)/        # Kitchen Display System (KDS)
+│   │   ├── (admin)/          # Admin — menu, staff, reports
+│   │   └── api/              # API routes (proxy to NestJS backend)
+│   ├── components/
+│   │   ├── ui/               # shadcn/ui primitives
+│   │   ├── shared/           # Logo, Header, Sidebar, etc.
+│   │   ├── pos/              # POS-specific: TableCard, OrderPanel, etc.
+│   │   └── kitchen/          # KDS components
+│   ├── lib/
+│   │   ├── utils.ts          # cn(), formatCurrency, etc.
+│   │   └── api.ts            # NestJS API client
+│   └── hooks/                # Custom React hooks
+├── public/
+│   └── logo.svg              # OrderHub brand logo
+└── README.md
+```
+
+---
+
+## Planned Features
+
+### Phase 1 — Foundation
+- [ ] Authentication (staff login with PIN or password)
+- [ ] Menu management (categories, items, variants, prices)
+- [ ] Floor plan setup (floors, tables, seats, shapes)
+
+### Phase 2 — Core POS
+- [ ] Floor plan view with real-time table status
+- [ ] Order taking (add items, quantities, modifiers, notes)
+- [ ] Kitchen ticket printing / KDS display
+- [ ] Billing and payment (cash, card, UPI)
+
+### Phase 3 — Advanced
+- [ ] Bill splitting per guest
+- [ ] Tips and service charges
+- [ ] Order transfer between tables
+- [ ] Takeaway and delivery orders
+- [ ] Table reservation / booking
+
+### Phase 4 — Reports & Admin
+- [ ] Daily sales report
+- [ ] Category-wise revenue
+- [ ] Popular items
+- [ ] Staff performance
+- [ ] Hourly breakdown charts
+
+---
+
+## Table Status Legend
+
+| Status | Color | Meaning |
+|---|---|---|
+| Available | 🟢 Green | Empty, ready for guests |
+| Occupied | 🟠 Orange | Has active order |
+| Reserved | 🔵 Blue | Booked/upcoming |
+| Dirty | 🔴 Red | Needs cleaning |
+
+---
 
 ## Getting Started
 
-First, run the development server:
-
 ```bash
+git clone <repo>
+cd orderhub
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### Environment Variables
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```env
+NEXT_PUBLIC_APP_URL=http://localhost:3000
+NEXT_PUBLIC_API_URL=http://localhost:4000   # NestJS backend
 
-## Learn More
+# Neon DB
+DATABASE_URL=postgresql://...
 
-To learn more about Next.js, take a look at the following resources:
+# Cloudinary
+NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME=
+CLOUDINARY_API_KEY=
+CLOUDINARY_API_SECRET=
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+---
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## License
 
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+MIT
