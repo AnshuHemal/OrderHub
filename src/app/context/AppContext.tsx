@@ -61,6 +61,7 @@ export interface Table {
   tableNumber: string;
   seats: number;
   isActive: boolean;
+  status: string;
 }
 
 export interface Customer {
@@ -155,6 +156,7 @@ interface AppContextType {
   currentUser: User | null;
   activeSession: PosSession | null;
   sessionsList: PosSession[];
+  loading: boolean;
   login: (email: string, pass: string) => Promise<boolean>;
   signup: (name: string, email: string, pass: string) => Promise<boolean>;
   logout: () => void;
@@ -190,12 +192,12 @@ interface AppContextType {
 
   // Floor & Table Actions
   createFloor: (name: string) => void;
-  createTable: (table: Omit<Table, "id" | "isActive">) => void;
+  createTable: (table: Omit<Table, "id" | "isActive" | "status">) => void;
   toggleTableStatus: (id: string) => void;
 
   // Coupon & Promo Actions
-  createCoupon: (coupon: Omit<Coupon, "id" | "isActive">) => void;
-  toggleCouponActive: (id: string) => void;
+  createCoupon: (coupon: Omit<Coupon, "id" | "isActive">) => Promise<void>;
+  toggleCouponActive: (id: string) => Promise<void>;
   createPromotion: (promo: Omit<Promotion, "id" | "isActive">) => void;
   togglePromoActive: (id: string) => void;
 
@@ -204,9 +206,9 @@ interface AppContextType {
   saveUpiId: (id: number, upiId: string) => void;
 
   // Customer Actions
-  createCustomer: (cust: Omit<Customer, "id">) => Customer;
-  updateCustomer: (id: string, cust: Partial<Customer>) => void;
-  deleteCustomer: (id: string) => void;
+  createCustomer: (cust: Omit<Customer, "id">) => Promise<Customer | undefined>;
+  updateCustomer: (id: string, cust: Partial<Customer>) => Promise<void>;
+  deleteCustomer: (id: string) => Promise<void>;
 
   // Booking Actions
   createBooking: (booking: Omit<Booking, "id">) => void;
@@ -275,12 +277,12 @@ const SEED_FLOORS: Floor[] = [
 ];
 
 const SEED_TABLES: Table[] = [
-  { id: "1", floorId: "1", tableNumber: "T-101", seats: 2, isActive: true },
-  { id: "2", floorId: "1", tableNumber: "T-102", seats: 4, isActive: true },
-  { id: "3", floorId: "1", tableNumber: "T-103", seats: 4, isActive: true },
-  { id: "4", floorId: "1", tableNumber: "T-104", seats: 6, isActive: true },
-  { id: "5", floorId: "2", tableNumber: "RT-201", seats: 2, isActive: true },
-  { id: "6", floorId: "2", tableNumber: "RT-202", seats: 4, isActive: true }
+  { id: "1", floorId: "1", tableNumber: "T-101", seats: 2, isActive: true, status: "AVAILABLE" },
+  { id: "2", floorId: "1", tableNumber: "T-102", seats: 4, isActive: true, status: "AVAILABLE" },
+  { id: "3", floorId: "1", tableNumber: "T-103", seats: 4, isActive: true, status: "AVAILABLE" },
+  { id: "4", floorId: "1", tableNumber: "T-104", seats: 6, isActive: true, status: "AVAILABLE" },
+  { id: "5", floorId: "2", tableNumber: "RT-201", seats: 2, isActive: true, status: "AVAILABLE" },
+  { id: "6", floorId: "2", tableNumber: "RT-202", seats: 4, isActive: true, status: "AVAILABLE" }
 ];
 
 const SEED_COUPONS: Coupon[] = [
@@ -327,6 +329,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // POS Order view cart helper
   const [currentOrder, setCurrentOrder] = useState<Order | null>(null);
+  const [loading, setLoading] = useState(true);
   // 1. Initial State Loading from LocalStorage or Seeds
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -344,8 +347,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       };
 
       setPaymentMethods(getOrSeed<PaymentMethod[]>("payment_methods", SEED_PAYMENT_METHODS));
-      setCustomers(getOrSeed<Customer[]>("customers", SEED_CUSTOMERS));
-      setCoupons(getOrSeed<Coupon[]>("coupons", SEED_COUPONS));
+      setCoupons([]);
       setPromotions(getOrSeed<Promotion[]>("promotions", SEED_PROMOTIONS));
       setBookings(getOrSeed<Booking[]>("bookings", SEED_BOOKINGS));
       setSessionsList(getOrSeed<PosSession[]>("sessions_list", []));
@@ -375,9 +377,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           }
         } catch {
           setCurrentUser(null);
+        } finally {
+          setLoading(false);
         }
       };
       initAuth();
+    } else {
+      setLoading(false);
     }
   }, []);
 
@@ -387,8 +393,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   // Sync local-only variables to localStorage
-  useEffect(() => { if (customers.length > 0) saveState("customers", customers); }, [customers]);
-  useEffect(() => { if (coupons.length > 0) saveState("coupons", coupons); }, [coupons]);
   useEffect(() => { if (promotions.length > 0) saveState("promotions", promotions); }, [promotions]);
   useEffect(() => { if (bookings.length > 0) saveState("bookings", bookings); }, [bookings]);
   useEffect(() => { saveState("sessions_list", sessionsList); }, [sessionsList]);
@@ -412,7 +416,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         floorId: f.id,
         tableNumber: t.number,
         seats: t.seats,
-        isActive: t.status === 'AVAILABLE' || t.status === 'RESERVED'
+        isActive: true, // Keep interactive so cashiers can manage occupied or dirty tables
+        status: t.status
       })));
       setTables(flatTables);
     } catch (err) {
@@ -512,6 +517,29 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
+  const fetchCustomers = async () => {
+    try {
+      const data = await api.get<any[]>('/customers');
+      setCustomers(data.map(c => ({
+        id: c.id,
+        name: c.name,
+        email: c.email,
+        phone: c.phone || ""
+      })));
+    } catch (err) {
+      console.error("fetchCustomers error:", err);
+    }
+  };
+
+  const fetchCoupons = async () => {
+    try {
+      const data = await api.get<Coupon[]>('/coupons');
+      setCoupons(data);
+    } catch (err) {
+      console.error("fetchCoupons error:", err);
+    }
+  };
+
   // Synchronize dynamic backend tables upon authenticated session
   useEffect(() => {
     if (currentUser) {
@@ -520,7 +548,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           fetchFloorsAndTables(),
           fetchMenu(),
           fetchOrders(),
-          fetchUsers()
+          fetchUsers(),
+          fetchCustomers(),
+          fetchCoupons()
         ]);
       };
       loadAllData();
@@ -867,7 +897,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
-  const createTable = async (table: Omit<Table, "id" | "isActive">) => {
+  const createTable = async (table: Omit<Table, "id" | "isActive" | "status">) => {
     try {
       await api.post(`/floors/${table.floorId}/tables`, {
         number: table.tableNumber,
@@ -888,7 +918,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     try {
       const table = tables.find(t => t.id === id);
       if (!table) return;
-      const nextStatus = table.isActive ? 'DIRTY' : 'AVAILABLE';
+      const nextStatus = table.status === 'DIRTY' ? 'AVAILABLE' : 'DIRTY';
       await api.patch(`/floors/tables/${id}/status`, { status: nextStatus });
       await fetchFloorsAndTables();
     } catch (err) {
@@ -899,18 +929,25 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // Coupons & Promotions Setup Actions
   // ==========================================
 
-  const createCoupon = (coupon: Omit<Coupon, "id" | "isActive">) => {
-    const nextId = coupons.length > 0 ? String(Math.max(...coupons.map(c => parseInt(c.id) || 0)) + 1) : "1";
-    const newCoupon: Coupon = {
-      ...coupon,
-      id: nextId,
-      isActive: true
-    };
-    setCoupons(prev => [...prev, newCoupon]);
+  const createCoupon = async (coupon: Omit<Coupon, "id" | "isActive">): Promise<void> => {
+    try {
+      await api.post('/coupons', coupon);
+      await fetchCoupons();
+    } catch (err) {
+      console.error("createCoupon error:", err);
+    }
   };
 
-  const toggleCouponActive = (id: string) => {
-    setCoupons(prev => prev.map(c => c.id === id ? { ...c, isActive: !c.isActive } : c));
+  const toggleCouponActive = async (id: string): Promise<void> => {
+    try {
+      const c = coupons.find(x => x.id === id);
+      if (c) {
+        await api.put(`/coupons/${id}`, { isActive: !c.isActive });
+        await fetchCoupons();
+      }
+    } catch (err) {
+      console.error("toggleCouponActive error:", err);
+    }
   };
 
   const createPromotion = (promo: Omit<Promotion, "id" | "isActive">) => {
@@ -943,22 +980,46 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // Customer Actions
   // ==========================================
 
-  const createCustomer = (cust: Omit<Customer, "id">): Customer => {
-    const nextId = customers.length > 0 ? String(Math.max(...customers.map(c => parseInt(c.id) || 0)) + 1) : "1";
-    const newCust: Customer = {
-      ...cust,
-      id: nextId
-    };
-    setCustomers(prev => [...prev, newCust]);
-    return newCust;
+  const createCustomer = async (cust: Omit<Customer, "id">): Promise<Customer | undefined> => {
+    try {
+      const created = await api.post<any>('/customers', {
+        name: cust.name,
+        email: cust.email,
+        phone: cust.phone || null
+      });
+      await fetchCustomers();
+      return {
+        id: created.id,
+        name: created.name,
+        email: created.email,
+        phone: created.phone || ""
+      };
+    } catch (err) {
+      console.error("createCustomer error:", err);
+      return undefined;
+    }
   };
 
-  const updateCustomer = (id: string, cust: Partial<Customer>) => {
-    setCustomers(prev => prev.map(c => c.id === id ? { ...c, ...cust } : c));
+  const updateCustomer = async (id: string, cust: Partial<Customer>): Promise<void> => {
+    try {
+      await api.put(`/customers/${id}`, {
+        name: cust.name,
+        email: cust.email,
+        phone: cust.phone || null
+      });
+      await fetchCustomers();
+    } catch (err) {
+      console.error("updateCustomer error:", err);
+    }
   };
 
-  const deleteCustomer = (id: string) => {
-    setCustomers(prev => prev.filter(c => c.id !== id));
+  const deleteCustomer = async (id: string): Promise<void> => {
+    try {
+      await api.delete(`/customers/${id}`);
+      await fetchCustomers();
+    } catch (err) {
+      console.error("deleteCustomer error:", err);
+    }
   };
 
   // ==========================================
@@ -1289,7 +1350,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setFloors(SEED_FLOORS);
       setTables(SEED_TABLES);
       setCustomers(SEED_CUSTOMERS);
-      setCoupons(SEED_COUPONS);
+      setCoupons([]);
       setPromotions(SEED_PROMOTIONS);
       setOrders([]);
       setBookings(SEED_BOOKINGS);
@@ -1305,6 +1366,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       value={{
         currentUser,
         activeSession,
+        loading,
         sessionsList,
         login,
         signup,

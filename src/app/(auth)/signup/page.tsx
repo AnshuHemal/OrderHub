@@ -16,29 +16,31 @@ export default function SignupPage() {
   return (
     <FadeIn className="flex flex-col gap-5">
       {/* Card */}
-      <div className="rounded-2xl border border-border bg-card px-8 py-9 shadow-lg shadow-black/5">
+      <div className="glass-panel rounded-3xl px-8 py-9 shadow-xl relative overflow-hidden">
+        
+        {/* Top accent line */}
+        <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-amber-500 via-primary to-accent opacity-90" />
 
         {/* Header */}
         <FadeIn direction="down" delay={0.05} className="mb-7 flex flex-col gap-1.5 text-center">
           <h1 className="text-2xl font-bold tracking-tight">Create your account</h1>
           <p className="text-sm text-muted-foreground">
-            Free to start — no credit card required
+            Start managing your cafe terminal today
           </p>
         </FadeIn>
-
 
         {/* Form */}
         <SignupForm />
 
         {/* Terms */}
         <FadeIn direction="none" delay={0.32}>
-          <p className="mt-5 text-center text-xs text-muted-foreground">
+          <p className="mt-5 text-center text-[10px] text-muted-foreground leading-normal">
             By creating an account you agree to our{" "}
-            <Link href="/terms" className="underline underline-offset-4 hover:text-foreground transition-colors">
+            <Link href="/terms" className="underline underline-offset-4 hover:text-primary transition-colors">
               Terms
             </Link>{" "}
             and{" "}
-            <Link href="/privacy" className="underline underline-offset-4 hover:text-foreground transition-colors">
+            <Link href="/privacy" className="underline underline-offset-4 hover:text-primary transition-colors">
               Privacy Policy
             </Link>
           </p>
@@ -49,7 +51,7 @@ export default function SignupPage() {
       <FadeIn direction="none" delay={0.36}>
         <p className="text-center text-sm text-muted-foreground">
           Already have an account?{" "}
-          <Link href="/login" className="font-semibold text-foreground underline-offset-4 hover:underline">
+          <Link href="/login" className="font-semibold text-primary hover:text-accent underline-offset-4 hover:underline transition-colors">
             Sign in
           </Link>
         </p>

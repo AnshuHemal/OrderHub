@@ -50,9 +50,11 @@ export default async function DashboardPage() {
           <Button size="lg" variant="outline" className="gap-3 h-14 text-base" asChild>
             <Link href="/kitchen"><ChefHat className="size-5" /> Kitchen Display</Link>
           </Button>
-          <Button size="lg" variant="outline" className="gap-3 h-14 text-base" asChild>
-            <Link href="/backend"><UtensilsCrossed className="size-5" /> Admin Panel</Link>
-          </Button>
+          {(user.role === "OWNER" || user.role === "MANAGER") && (
+            <Button size="lg" variant="outline" className="gap-3 h-14 text-base" asChild>
+              <Link href="/backend"><UtensilsCrossed className="size-5" /> Admin Panel</Link>
+            </Button>
+          )}
         </div>
       </main>
     </div>

@@ -52,7 +52,7 @@ export function LoginForm() {
           autoComplete="email"
           required
           disabled={isPending}
-          className="h-10"
+          className="h-11 border-border-color bg-background/30 focus-visible:ring-primary focus-visible:border-primary focus-visible:ring-1 transition-all duration-200"
         />
       </FadeIn>
 
@@ -62,7 +62,7 @@ export function LoginForm() {
           <Label htmlFor="password">Password</Label>
           <Link
             href="/forgot-password"
-            className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+            className="text-xs text-muted-foreground hover:text-primary transition-colors"
           >
             Forgot password?
           </Link>
@@ -76,7 +76,7 @@ export function LoginForm() {
             autoComplete="current-password"
             required
             disabled={isPending}
-            className="h-10 pr-10"
+            className="h-11 pr-10 border-border-color bg-background/30 focus-visible:ring-primary focus-visible:border-primary focus-visible:ring-1 transition-all duration-200"
           />
           <button
             type="button"
@@ -109,7 +109,11 @@ export function LoginForm() {
 
       {/* Submit */}
       <FadeIn delay={0.16}>
-        <Button type="submit" className="mt-1 h-10 w-full gap-2" disabled={isPending}>
+        <Button 
+          type="submit" 
+          className="mt-1 h-11 w-full gap-2 bg-gradient-to-r from-amber-600 to-primary text-white hover:from-amber-700 hover:to-primary-hover shadow-md shadow-amber-900/10 cursor-pointer transition-all duration-200" 
+          disabled={isPending}
+        >
           {isPending ? (
             <>
               <motion.span

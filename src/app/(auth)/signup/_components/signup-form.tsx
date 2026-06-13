@@ -67,12 +67,12 @@ export function SignupForm() {
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="firstName">First name</Label>
           <Input id="firstName" name="firstName" placeholder="Jane" autoComplete="given-name"
-            required disabled={isPending} className="h-10" />
+            required disabled={isPending} className="h-11 border-border-color bg-background/30 focus-visible:ring-primary focus-visible:border-primary focus-visible:ring-1 transition-all duration-200" />
         </div>
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="lastName">Last name</Label>
           <Input id="lastName" name="lastName" placeholder="Smith" autoComplete="family-name"
-            required disabled={isPending} className="h-10" />
+            required disabled={isPending} className="h-11 border-border-color bg-background/30 focus-visible:ring-primary focus-visible:border-primary focus-visible:ring-1 transition-all duration-200" />
         </div>
       </FadeIn>
 
@@ -80,7 +80,7 @@ export function SignupForm() {
       <FadeIn delay={0.12} className="flex flex-col gap-1.5">
         <Label htmlFor="email">Work email</Label>
         <Input id="email" name="email" type="email" placeholder="you@cafe.com"
-          autoComplete="email" required disabled={isPending} className="h-10" />
+          autoComplete="email" required disabled={isPending} className="h-11 border-border-color bg-background/30 focus-visible:ring-primary focus-visible:border-primary focus-visible:ring-1 transition-all duration-200" />
       </FadeIn>
 
       {/* Password + strength */}
@@ -98,7 +98,7 @@ export function SignupForm() {
             disabled={isPending}
             value={password}
             onChange={(e) => { setPassword(e.target.value); setError(null); }}
-            className="h-10 pr-10"
+            className="h-11 pr-10 border-border-color bg-background/30 focus-visible:ring-primary focus-visible:border-primary focus-visible:ring-1 transition-all duration-200"
           />
           <button
             type="button"
@@ -151,7 +151,11 @@ export function SignupForm() {
 
       {/* Submit */}
       <FadeIn delay={0.2}>
-        <Button type="submit" className="mt-1 h-10 w-full gap-2" disabled={isPending}>
+        <Button 
+          type="submit" 
+          className="mt-1 h-11 w-full gap-2 bg-gradient-to-r from-amber-600 to-primary text-white hover:from-amber-700 hover:to-primary-hover shadow-md shadow-amber-900/10 cursor-pointer transition-all duration-200" 
+          disabled={isPending}
+        >
           {isPending ? (
             <>
               <motion.span

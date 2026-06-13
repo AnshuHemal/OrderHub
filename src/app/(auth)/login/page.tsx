@@ -17,16 +17,18 @@ export default function LoginPage() {
   return (
     <FadeIn className="flex flex-col gap-5">
       {/* Card */}
-      <div className="rounded-2xl border border-border bg-card px-8 py-9 shadow-lg shadow-black/5">
+      <div className="glass-panel rounded-3xl px-8 py-9 shadow-xl relative overflow-hidden">
+        
+        {/* Top accent line */}
+        <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-amber-500 via-primary to-accent opacity-90" />
 
         {/* Header */}
         <FadeIn direction="down" delay={0.05} className="mb-7 flex flex-col gap-1.5 text-center">
           <h1 className="text-2xl font-bold tracking-tight">Welcome back</h1>
           <p className="text-sm text-muted-foreground">
-            Sign in to your {siteConfig.name} account
+            Sign in to your {siteConfig.name} portal
           </p>
         </FadeIn>
-
 
         {/* Form */}
         <Suspense>
@@ -38,7 +40,7 @@ export default function LoginPage() {
       <FadeIn direction="none" delay={0.3}>
         <p className="text-center text-sm text-muted-foreground">
           Don&apos;t have an account?{" "}
-          <Link href="/signup" className="font-semibold text-foreground underline-offset-4 hover:underline">
+          <Link href="/signup" className="font-semibold text-primary hover:text-accent underline-offset-4 hover:underline transition-colors">
             Create one free
           </Link>
         </p>

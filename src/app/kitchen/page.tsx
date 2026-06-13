@@ -6,18 +6,30 @@ import { useApp, Order, OrderItem, KitchenStage } from "@/app/context/AppContext
 
 export default function KitchenDisplay() {
   const router = useRouter();
-  const { currentUser, orders, categories, products, updateKdsStage, toggleKdsItemComplete } = useApp();
+  const { currentUser, orders, categories, products, updateKdsStage, toggleKdsItemComplete, loading } = useApp();
 
   // Search & Filter state
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
 
-  // Security warning: redirect to home if not logged in
+  // Security warning: redirect to home if not logged in (skip while loading)
   useEffect(() => {
+    if (loading) return;
     if (!currentUser) {
       router.push("/");
     }
-  }, [currentUser, router]);
+  }, [currentUser, loading, router]);
+
+  if (loading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-stone-100 dark:bg-stone-950 font-sans">
+        <div className="text-center space-y-4">
+          <div className="w-12 h-12 border-4 border-amber-500 border-t-transparent rounded-full animate-spin mx-auto"></div>
+          <p className="text-sm font-bold text-stone-600 dark:text-stone-300">Synchronizing KDS session...</p>
+        </div>
+      </div>
+    );
+  }
 
   if (!currentUser) return null;
   // Time ticker to update "minutes elapsed" dynamically
