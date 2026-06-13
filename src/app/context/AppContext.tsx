@@ -198,8 +198,10 @@ interface AppContextType {
   // Coupon & Promo Actions
   createCoupon: (coupon: Omit<Coupon, "id" | "isActive">) => Promise<void>;
   toggleCouponActive: (id: string) => Promise<void>;
-  createPromotion: (promo: Omit<Promotion, "id" | "isActive">) => void;
-  togglePromoActive: (id: string) => void;
+  deleteCoupon: (id: string) => Promise<void>;
+  createPromotion: (promo: Omit<Promotion, "id" | "isActive">) => Promise<void>;
+  togglePromoActive: (id: string) => Promise<void>;
+  deletePromotion: (id: string) => Promise<void>;
 
   // Payment Setup Actions
   togglePaymentMethod: (id: number) => void;
@@ -348,7 +350,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
       setPaymentMethods(getOrSeed<PaymentMethod[]>("payment_methods", SEED_PAYMENT_METHODS));
       setCoupons([]);
-      setPromotions(getOrSeed<Promotion[]>("promotions", SEED_PROMOTIONS));
+      setPromotions([]);
       setBookings(getOrSeed<Booking[]>("bookings", SEED_BOOKINGS));
       setSessionsList(getOrSeed<PosSession[]>("sessions_list", []));
 
@@ -394,7 +396,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Sync local-only variables to localStorage
   useEffect(() => { if (paymentMethods.length > 0) saveState("payment_methods", paymentMethods); }, [paymentMethods]);
-  useEffect(() => { if (promotions.length > 0) saveState("promotions", promotions); }, [promotions]);
   useEffect(() => { if (bookings.length > 0) saveState("bookings", bookings); }, [bookings]);
   useEffect(() => { saveState("sessions_list", sessionsList); }, [sessionsList]);
 
@@ -554,6 +555,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
+  const fetchPromotions = async () => {
+    try {
+      const data = await api.get<Promotion[]>('/promotions');
+      setPromotions(data);
+    } catch (err) {
+      console.error("fetchPromotions error:", err);
+    }
+  };
+
   // Synchronize dynamic backend tables upon authenticated session
   useEffect(() => {
     if (currentUser) {
@@ -565,6 +575,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           fetchOrders(),
           fetchCustomers(),
           fetchCoupons(),
+          fetchPromotions(),
           ...(isAdmin ? [fetchUsers()] : [])
         ]);
       };
@@ -965,18 +976,43 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
-  const createPromotion = (promo: Omit<Promotion, "id" | "isActive">) => {
-    const nextId = promotions.length > 0 ? String(Math.max(...promotions.map(p => parseInt(p.id) || 0)) + 1) : "1";
-    const newPromo: Promotion = {
-      ...promo,
-      id: nextId,
-      isActive: true
-    };
-    setPromotions(prev => [...prev, newPromo]);
+  const createPromotion = async (promo: Omit<Promotion, "id" | "isActive">): Promise<void> => {
+    try {
+      await api.post("/promotions", promo);
+      await fetchPromotions();
+    } catch (err) {
+      console.error("createPromotion error:", err);
+    }
   };
 
-  const togglePromoActive = (id: string) => {
-    setPromotions(prev => prev.map(p => p.id === id ? { ...p, isActive: !p.isActive } : p));
+  const togglePromoActive = async (id: string): Promise<void> => {
+    try {
+      const p = promotions.find(x => x.id === id);
+      if (p) {
+        await api.put(`/promotions/${id}`, { isActive: !p.isActive });
+        await fetchPromotions();
+      }
+    } catch (err) {
+      console.error("togglePromoActive error:", err);
+    }
+  };
+
+  const deleteCoupon = async (id: string): Promise<void> => {
+    try {
+      await api.delete(`/coupons/${id}`);
+      await fetchCoupons();
+    } catch (err) {
+      console.error("deleteCoupon error:", err);
+    }
+  };
+
+  const deletePromotion = async (id: string): Promise<void> => {
+    try {
+      await api.delete(`/promotions/${id}`);
+      await fetchPromotions();
+    } catch (err) {
+      console.error("deletePromotion error:", err);
+    }
   };
 
   // ==========================================
@@ -1414,8 +1450,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         toggleTableStatus,
         createCoupon,
         toggleCouponActive,
+        deleteCoupon,
         createPromotion,
         togglePromoActive,
+        deletePromotion,
         togglePaymentMethod,
         saveUpiId,
         createCustomer,
