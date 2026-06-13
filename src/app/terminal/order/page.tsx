@@ -3,6 +3,7 @@
 import React, { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useApp, Product, Order, Customer } from "@/app/context/AppContext";
+import { UpiQr } from "@/components/shared/upi-qr";
 
 function OrderCheckoutContent() {
   const router = useRouter();
@@ -51,6 +52,8 @@ function OrderCheckoutContent() {
   const [customerEmail, setCustomerEmail] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
   const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
+  const [selectedCustomerId, setSelectedCustomerId] = useState("");
+  const [modalMode, setModalMode] = useState<"select" | "register">("select");
 
   // Pre-select first category by default if any
   useEffect(() => {
@@ -313,6 +316,8 @@ function OrderCheckoutContent() {
                 setCustomerName("");
                 setCustomerEmail("");
                 setCustomerPhone("");
+                setSelectedCustomerId("");
+                setModalMode(customers.length > 0 ? "select" : "register");
                 setShowCustomerModal(true);
               }}
               className="text-primary dark:text-amber-500 font-bold hover:underline"
@@ -489,65 +494,139 @@ function OrderCheckoutContent() {
         </div>
       )}
 
-      {/* Modal 2: Cashier Guest Registration */}
+      {/* Modal 2: Cashier Guest Registration / Select */}
       {showCustomerModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in">
-          <div className="bg-white dark:bg-stone-900 rounded-3xl max-w-sm w-full p-6 shadow-2xl border border-stone-200 dark:border-stone-800">
+          <div className="bg-white dark:bg-stone-900 rounded-3xl max-w-sm w-full p-6 shadow-2xl border border-stone-200 dark:border-stone-800 space-y-4">
             <div className="flex items-center justify-between pb-3 border-b border-stone-150 dark:border-stone-800">
-              <h3 className="font-extrabold text-stone-800 dark:text-stone-100">Register Guest Customer</h3>
-              <button onClick={() => setShowCustomerModal(false)} className="text-stone-400 hover:text-stone-800 text-lg">×</button>
+              <h3 className="font-extrabold text-stone-800 dark:text-stone-100">
+                {modalMode === "select" ? "Assign Existing Guest" : "Register Guest Customer"}
+              </h3>
+              <button onClick={() => setShowCustomerModal(false)} className="text-stone-400 hover:text-stone-850 dark:hover:text-stone-100 text-lg">×</button>
             </div>
 
-            <form onSubmit={handleSaveCustomer} className="space-y-4 mt-4 text-xs">
-              <div>
-                <label className="block font-bold text-stone-500 mb-1">Full Name</label>
-                <input
-                  type="text"
-                  value={customerName}
-                  onChange={(e) => setCustomerName(e.target.value)}
-                  placeholder="e.g. Sarah Connor"
-                  className="w-full px-3 py-2 bg-stone-50 dark:bg-stone-950 border border-stone-200 dark:border-stone-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary text-stone-900 dark:text-white"
-                  required
-                />
-              </div>
-              <div>
-                <label className="block font-bold text-stone-500 mb-1">Email Address</label>
-                <input
-                  type="email"
-                  value={customerEmail}
-                  onChange={(e) => setCustomerEmail(e.target.value)}
-                  placeholder="sarah@terminator.com"
-                  className="w-full px-3 py-2 bg-stone-50 dark:bg-stone-955 border border-stone-200 dark:border-stone-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary text-stone-900 dark:text-white"
-                  required
-                />
-              </div>
-              <div>
-                <label className="block font-bold text-stone-500 mb-1">Phone Number (Optional)</label>
-                <input
-                  type="text"
-                  value={customerPhone}
-                  onChange={(e) => setCustomerPhone(e.target.value)}
-                  placeholder="+1 555-0199"
-                  className="w-full px-3 py-2 bg-stone-50 dark:bg-stone-955 border border-stone-200 dark:border-stone-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary text-stone-900 dark:text-white"
-                />
-              </div>
-
-              <div className="flex gap-2 justify-end pt-2">
+            {/* Mode selection buttons */}
+            {customers.length > 0 && (
+              <div className="flex bg-stone-100 dark:bg-stone-950 p-1 rounded-xl">
                 <button
                   type="button"
-                  onClick={() => setShowCustomerModal(false)}
-                  className="px-4 py-2 border border-stone-200 dark:border-stone-805 text-stone-500 rounded-xl font-bold"
+                  onClick={() => setModalMode("select")}
+                  className={`flex-1 py-1.5 text-[10px] font-bold rounded-lg transition-all ${
+                    modalMode === "select"
+                      ? "bg-white dark:bg-stone-800 text-stone-800 dark:text-stone-100 shadow-sm"
+                      : "text-stone-500"
+                  }`}
                 >
-                  Cancel
+                  Select Existing
                 </button>
                 <button
-                  type="submit"
-                  className="px-4 py-2 bg-primary text-white rounded-xl font-bold shadow hover:bg-primary-hover transition-colors"
+                  type="button"
+                  onClick={() => setModalMode("register")}
+                  className={`flex-1 py-1.5 text-[10px] font-bold rounded-lg transition-all ${
+                    modalMode === "register"
+                      ? "bg-white dark:bg-stone-800 text-stone-800 dark:text-stone-100 shadow-sm"
+                      : "text-stone-500"
+                  }`}
                 >
-                  Link Guest Profile
+                  Create New
                 </button>
               </div>
-            </form>
+            )}
+
+            {modalMode === "select" ? (
+              <div className="space-y-4 text-xs">
+                <div>
+                  <label className="block font-bold text-stone-500 mb-1.5">Select Customer Profile</label>
+                  <select
+                    value={selectedCustomerId}
+                    onChange={(e) => setSelectedCustomerId(e.target.value)}
+                    className="w-full px-3 py-2.5 bg-stone-50 dark:bg-stone-955 border border-stone-200 dark:border-stone-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary text-stone-900 dark:text-white font-bold"
+                  >
+                    <option value="">-- Choose Existing Guest --</option>
+                    {customers.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.name} {c.phone ? `(${c.phone})` : ""} {c.email ? `(${c.email})` : ""}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="flex gap-2 justify-end pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowCustomerModal(false)}
+                    className="px-4 py-2 border border-stone-200 dark:border-stone-805 text-stone-500 rounded-xl font-bold"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (selectedCustomerId) {
+                        linkCustomerToOrder(selectedCustomerId);
+                        setShowCustomerModal(false);
+                      } else {
+                        alert("Please select a customer first.");
+                      }
+                    }}
+                    className="px-4 py-2 bg-primary text-white rounded-xl font-bold shadow hover:bg-primary-hover transition-colors animate-pulse-light"
+                  >
+                    Link Guest Profile
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <form onSubmit={handleSaveCustomer} className="space-y-4 text-xs">
+                <div>
+                  <label className="block font-bold text-stone-500 mb-1">Full Name</label>
+                  <input
+                    type="text"
+                    value={customerName}
+                    onChange={(e) => setCustomerName(e.target.value)}
+                    placeholder="e.g. Sarah Connor"
+                    className="w-full px-3 py-2 bg-stone-50 dark:bg-stone-950 border border-stone-200 dark:border-stone-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary text-stone-900 dark:text-white"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block font-bold text-stone-500 mb-1">Email Address</label>
+                  <input
+                    type="email"
+                    value={customerEmail}
+                    onChange={(e) => setCustomerEmail(e.target.value)}
+                    placeholder="sarah@terminator.com"
+                    className="w-full px-3 py-2 bg-stone-50 dark:bg-stone-955 border border-stone-200 dark:border-stone-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary text-stone-900 dark:text-white"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block font-bold text-stone-500 mb-1">Phone Number (Optional)</label>
+                  <input
+                    type="text"
+                    value={customerPhone}
+                    onChange={(e) => setCustomerPhone(e.target.value)}
+                    placeholder="+1 555-0199"
+                    className="w-full px-3 py-2 bg-stone-50 dark:bg-stone-955 border border-stone-200 dark:border-stone-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary text-stone-900 dark:text-white"
+                  />
+                </div>
+
+                <div className="flex gap-2 justify-end pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowCustomerModal(false)}
+                    className="px-4 py-2 border border-stone-200 dark:border-stone-805 text-stone-500 rounded-xl font-bold"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-4 py-2 bg-primary text-white rounded-xl font-bold shadow hover:bg-primary-hover transition-colors"
+                  >
+                    Link Guest Profile
+                  </button>
+                </div>
+              </form>
+            )}
           </div>
         </div>
       )}
@@ -627,15 +706,19 @@ function OrderCheckoutContent() {
               )}
 
               {/* UPI/QR specific details */}
-              {selectedPaymentId === 3 && (
-                <div className="p-4 bg-stone-50 dark:bg-stone-950 rounded-2xl text-center space-y-2.5 border border-stone-100 dark:border-stone-850">
-                  <p className="text-xs text-stone-500">Scan QR Code on merchant terminal to capture payment details:</p>
-                  <div className="w-32 h-32 bg-stone-200 dark:bg-stone-800 rounded-xl mx-auto flex items-center justify-center font-bold text-stone-500 select-none">
-                    [ UPI QR CODE ]
+              {selectedPaymentId === 3 && (() => {
+                const upiMethod = paymentMethods.find(p => p.id === 3);
+                return (
+                  <div className="rounded-2xl border border-stone-100 bg-stone-50 p-5 dark:border-stone-800 dark:bg-stone-950">
+                    <UpiQr
+                      upiId={upiMethod?.upiId ?? ""}
+                      merchantName="Odoo Cafe"
+                      amount={currentOrder.total}
+                      orderId={currentOrder.orderNumber}
+                    />
                   </div>
-                  <p className="font-mono text-[10px] text-stone-400">UPI: {paymentMethods.find(p => p.id === 3)?.upiId}</p>
-                </div>
-              )}
+                );
+              })()}
 
               <div className="flex gap-2 justify-end pt-2">
                 <button
