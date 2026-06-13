@@ -193,8 +193,14 @@ function OrderCheckoutContent() {
     if (!receiptEmailInput || !receiptOrder) return;
     setEmailSentStatus(true);
     try {
-      await sendEmailReceipt(receiptOrder.id, receiptEmailInput);
-      alert(`Receipt email successfully sent to ${receiptEmailInput}!`);
+      const res = await sendEmailReceipt(receiptOrder.id, receiptEmailInput);
+      if (res?.previewUrl) {
+        alert(`Receipt generated (Ethereal test mode)!\nPreview URL: ${res.previewUrl}`);
+      } else if (res?.status === 'logged') {
+        alert("Offline Mode: Email receipt simulation logged to the server terminal!");
+      } else {
+        alert(`Receipt email successfully sent to ${receiptEmailInput}!`);
+      }
     } catch (err) {
       alert("Failed to send receipt email. Please verify settings.");
     } finally {
