@@ -12,6 +12,13 @@ export default function KitchenDisplay() {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
 
+  // Time ticker to update "minutes elapsed" dynamically
+  const [time, setTime] = useState(Date.now());
+  useEffect(() => {
+    const interval = setInterval(() => setTime(Date.now()), 10000); // refresh every 10s
+    return () => clearInterval(interval);
+  }, []);
+
   // Security warning: redirect to home if not logged in (skip while loading)
   useEffect(() => {
     if (loading) return;
@@ -32,12 +39,6 @@ export default function KitchenDisplay() {
   }
 
   if (!currentUser) return null;
-  // Time ticker to update "minutes elapsed" dynamically
-  const [time, setTime] = useState(Date.now());
-  useEffect(() => {
-    const interval = setInterval(() => setTime(Date.now()), 10000); // refresh every 10s
-    return () => clearInterval(interval);
-  }, []);
 
   // Filter orders containing items belonging to the selected category (if any) and matching search
   const filteredOrders = orders

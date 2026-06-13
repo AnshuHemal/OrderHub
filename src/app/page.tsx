@@ -797,7 +797,11 @@ export default function Home() {
           <span>·</span>
           <a href="#simulator" className="hover:text-stone-700 dark:hover:text-stone-200">Playground</a>
           <span>·</span>
-          <Link href="/login" className="hover:text-stone-700 dark:hover:text-stone-200">Staff Portal</Link>
+          {currentUser ? (
+            <Link href="/dashboard" className="hover:text-stone-700 dark:hover:text-stone-200">Go to Dashboard</Link>
+          ) : (
+            <Link href="/login" className="hover:text-stone-700 dark:hover:text-stone-200">Staff Portal</Link>
+          )}
         </div>
       </footer>
 
@@ -959,7 +963,7 @@ export default function Home() {
                   className="w-full py-2.5 border border-red-500/20 text-red-500 hover:bg-red-500/5 text-xs font-bold rounded-xl transition-colors flex items-center justify-center gap-2 cursor-pointer"
                 >
                   <LogOut className="size-4" />
-                  Sign Out of Staff Account
+                  Sign Out
                 </button>
               </div>
             </motion.div>

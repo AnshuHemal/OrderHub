@@ -142,7 +142,15 @@ export default function TerminalLayout({ children }: { children: React.ReactNode
               👤
             </div>
             <div className="hidden sm:block text-left leading-none">
-              <p className="text-xs text-stone-400">Cashier</p>
+              <p className="text-xs text-stone-400">
+                {currentUser.role === "OWNER"
+                  ? "Owner"
+                  : currentUser.role === "MANAGER"
+                  ? "Manager"
+                  : currentUser.role === "KITCHEN"
+                  ? "Kitchen"
+                  : "Cashier"}
+              </p>
               <p className="text-sm font-semibold text-stone-800 dark:text-stone-200">{currentUser.name}</p>
             </div>
           </div>

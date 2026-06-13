@@ -393,9 +393,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   // Sync local-only variables to localStorage
+  useEffect(() => { if (paymentMethods.length > 0) saveState("payment_methods", paymentMethods); }, [paymentMethods]);
   useEffect(() => { if (promotions.length > 0) saveState("promotions", promotions); }, [promotions]);
   useEffect(() => { if (bookings.length > 0) saveState("bookings", bookings); }, [bookings]);
   useEffect(() => { saveState("sessions_list", sessionsList); }, [sessionsList]);
+
+  // Sync state in real-time across tabs/windows on storage change
+  useEffect(() => {
+    const handleStorage = (e: StorageEvent) => {
+      if (e.key === "odoopos_payment_methods" && e.newValue) {
+        try {
+          setPaymentMethods(JSON.parse(e.newValue));
+        } catch {}
+      }
+    };
+    window.addEventListener("storage", handleStorage);
+    return () => window.removeEventListener("storage", handleStorage);
+  }, []);
 
   // Active Session local sync
   useEffect(() => {
@@ -544,13 +558,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   useEffect(() => {
     if (currentUser) {
       const loadAllData = async () => {
+        const isAdmin = currentUser.role === "admin" || currentUser.role === "OWNER" || currentUser.role === "MANAGER";
         await Promise.all([
           fetchFloorsAndTables(),
           fetchMenu(),
           fetchOrders(),
-          fetchUsers(),
           fetchCustomers(),
-          fetchCoupons()
+          fetchCoupons(),
+          ...(isAdmin ? [fetchUsers()] : [])
         ]);
       };
       loadAllData();
