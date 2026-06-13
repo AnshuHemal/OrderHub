@@ -45,13 +45,13 @@ export default async function DashboardPage() {
 
         <div className="grid w-full max-w-sm gap-3">
           <Button size="lg" className="gap-3 h-14 text-base" asChild>
-            <Link href="/pos"><LayoutGrid className="size-5" /> Open POS</Link>
+            <Link href="/terminal"><LayoutGrid className="size-5" /> Open POS</Link>
           </Button>
           <Button size="lg" variant="outline" className="gap-3 h-14 text-base" asChild>
             <Link href="/kitchen"><ChefHat className="size-5" /> Kitchen Display</Link>
           </Button>
           <Button size="lg" variant="outline" className="gap-3 h-14 text-base" asChild>
-            <Link href="/admin"><UtensilsCrossed className="size-5" /> Admin Panel</Link>
+            <Link href="/backend"><UtensilsCrossed className="size-5" /> Admin Panel</Link>
           </Button>
         </div>
       </main>

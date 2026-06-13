@@ -3,7 +3,7 @@
  * Base URL is read from NEXT_PUBLIC_API_URL (defaults to localhost:4000).
  */
 
-const BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000';
+const BASE = process.env.NEXT_PUBLIC_API_URL ?? 'https://order-hub-backend.vercel.app';
 
 type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
 
@@ -26,13 +26,22 @@ export class ApiError extends Error {
   }
 }
 
+function getCookie(name: string): string | undefined {
+  if (typeof document === "undefined") return undefined;
+  const value = `; ${document.cookie}`;
+  const parts = value.split(`; ${name}=`);
+  if (parts.length === 2) return parts.pop()?.split(';').shift();
+  return undefined;
+}
+
 async function request<T>(path: string, opts: RequestOptions = {}): Promise<T> {
   const { method = 'GET', body, token, tags, revalidate } = opts;
 
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
   };
-  if (token) headers['Authorization'] = `Bearer ${token}`;
+  const activeToken = token || getCookie('session_token');
+  if (activeToken) headers['Authorization'] = `Bearer ${activeToken}`;
 
   const fetchOpts: RequestInit & { next?: { tags?: string[]; revalidate?: number } } = {
     method,

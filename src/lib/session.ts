@@ -14,7 +14,7 @@ export interface Session {
   accessToken: string;
 }
 
-const BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000';
+const BASE = process.env.NEXT_PUBLIC_API_URL ?? 'https://order-hub-backend.vercel.app';
 
 export async function getSession(): Promise<Session | null> {
   try {

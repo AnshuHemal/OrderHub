@@ -19,5 +19,5 @@ export function proxy(request: NextRequest) {
   return NextResponse.next();
 }
 
-const PROTECTED_PREFIXES = ["/dashboard", "/pos", "/kitchen", "/admin", "/settings"];
+const PROTECTED_PREFIXES = ["/dashboard", "/terminal", "/kitchen", "/backend", "/settings"];
 const AUTH_ROUTES        = ["/login", "/signup", "/verify-email", "/forgot-password"];
