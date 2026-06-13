@@ -15,7 +15,8 @@ function OrdersLogContent() {
     tables,
     paymentMethods,
     cancelDraftOrder,
-    editDraftOrder
+    editDraftOrder,
+    sendEmailReceipt
   } = useApp();
 
   // Search input from layout query params
@@ -42,14 +43,18 @@ function OrdersLogContent() {
     return matchesSearch;
   });
 
-  const handleEmailReceipt = (e: React.FormEvent) => {
+  const handleEmailReceipt = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!receiptEmailInput) return;
+    if (!receiptEmailInput || !receiptOrder) return;
     setEmailSentStatus(true);
-    setTimeout(() => {
+    try {
+      await sendEmailReceipt(receiptOrder.id, receiptEmailInput);
+      alert(`Receipt email successfully sent to ${receiptEmailInput}!`);
+    } catch (err) {
+      alert("Failed to send receipt email. Please verify settings.");
+    } finally {
       setEmailSentStatus(false);
-      alert(`Receipt email successfully queued to ${receiptEmailInput}!`);
-    }, 1000);
+    }
   };
 
   return (

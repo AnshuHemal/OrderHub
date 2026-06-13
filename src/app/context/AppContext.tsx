@@ -228,6 +228,7 @@ interface AppContextType {
   sendOrderToKitchen: () => void;
   processOrderPayment: (methodId: number, ref?: string) => void;
   cancelDraftOrder: (id: string) => void;
+  sendEmailReceipt: (orderId: string, email: string) => Promise<void>;
   editDraftOrder: (id: string) => void;
   createNewOrder: (tableId: string | null) => void;
 
@@ -1333,6 +1334,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
+  const sendEmailReceipt = async (orderId: string, email: string): Promise<void> => {
+    try {
+      await api.post(`/orders/${orderId}/email-receipt`, { email });
+    } catch (err) {
+      console.error("sendEmailReceipt error:", err);
+      throw err;
+    }
+  };
+
   const editDraftOrder = (id: string) => {
     const draft = orders.find(o => o.id === id && o.status === "draft");
     if (draft) {
@@ -1472,6 +1482,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         sendOrderToKitchen,
         processOrderPayment,
         cancelDraftOrder,
+        sendEmailReceipt,
         editDraftOrder,
         createNewOrder,
         updateKdsStage,

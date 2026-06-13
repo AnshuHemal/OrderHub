@@ -23,7 +23,8 @@ function OrderCheckoutContent() {
     removeCoupon,
     sendOrderToKitchen,
     processOrderPayment,
-    createCustomer
+    createCustomer,
+    sendEmailReceipt
   } = useApp();
 
   // Search query sync from layout header
@@ -187,14 +188,18 @@ function OrderCheckoutContent() {
     setShowCustomerModal(false);
   };
 
-  const handleEmailReceipt = (e: React.FormEvent) => {
+  const handleEmailReceipt = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!receiptEmailInput) return;
+    if (!receiptEmailInput || !receiptOrder) return;
     setEmailSentStatus(true);
-    setTimeout(() => {
+    try {
+      await sendEmailReceipt(receiptOrder.id, receiptEmailInput);
+      alert(`Receipt email successfully sent to ${receiptEmailInput}!`);
+    } catch (err) {
+      alert("Failed to send receipt email. Please verify settings.");
+    } finally {
       setEmailSentStatus(false);
-      alert(`Receipt email successfully queued to ${receiptEmailInput}!`);
-    }, 1000);
+    }
   };
 
   return (
