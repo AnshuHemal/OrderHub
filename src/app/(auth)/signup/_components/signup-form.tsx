@@ -10,8 +10,10 @@ import { signUp } from "@/lib/auth-client";
 import { FadeIn } from "@/components/motion/fade-in";
 import { cn } from "@/lib/utils";
 
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
 function passwordStrength(pw: string): "empty" | "weak" | "fair" | "strong" {
-  if (!pw)          return "empty";
+  if (!pw)           return "empty";
   if (pw.length <  8) return "weak";
   if (pw.length < 12) return "fair";
   return "strong";
@@ -30,13 +32,32 @@ export function SignupForm() {
   const [isPending, setIsPending]       = useState(false);
   const [error, setError]               = useState<string | null>(null);
 
+  // Field-level errors
+  const [firstNameErr, setFirstNameErr] = useState("");
+  const [lastNameErr, setLastNameErr]   = useState("");
+  const [emailErr, setEmailErr]         = useState("");
+  const [passwordErr, setPasswordErr]   = useState("");
+
   const strength = passwordStrength(password);
   const sc       = strengthConfig[strength];
+
+  function validate(firstName: string, lastName: string, email: string, pw: string) {
+    const errors = {
+      firstName: !firstName.trim() ? "First name is required." : "",
+      lastName:  !lastName.trim()  ? "Last name is required."  : "",
+      email:     !email.trim()            ? "Email is required."
+               : !EMAIL_RE.test(email)    ? "Enter a valid email address."
+               : "",
+      password:  !pw               ? "Password is required."
+               : pw.length < 8    ? "Password must be at least 8 characters."
+               : "",
+    };
+    return errors;
+  }
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setError(null);
-    setIsPending(true);
 
     const form      = e.currentTarget;
     const firstName = (form.elements.namedItem("firstName") as HTMLInputElement).value.trim();
@@ -44,6 +65,14 @@ export function SignupForm() {
     const email     = (form.elements.namedItem("email")     as HTMLInputElement).value.trim();
     const pw        = (form.elements.namedItem("password")  as HTMLInputElement).value;
 
+    const errs = validate(firstName, lastName, email, pw);
+    setFirstNameErr(errs.firstName);
+    setLastNameErr(errs.lastName);
+    setEmailErr(errs.email);
+    setPasswordErr(errs.password);
+    if (Object.values(errs).some(Boolean)) return;
+
+    setIsPending(true);
     const { error: authError } = await signUp.email({
       email,
       password: pw,
@@ -66,21 +95,39 @@ export function SignupForm() {
       <FadeIn delay={0.08} className="grid grid-cols-2 gap-3">
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="firstName">First name</Label>
-          <Input id="firstName" name="firstName" placeholder="Jane" autoComplete="given-name"
-            required disabled={isPending} className="h-11 border-border-color bg-background/30 focus-visible:ring-primary focus-visible:border-primary focus-visible:ring-1 transition-all duration-200" />
+          <Input
+            id="firstName" name="firstName" placeholder="Jane"
+            autoComplete="given-name" disabled={isPending}
+            onChange={() => setFirstNameErr("")}
+            className={cn("h-11 border-border-color bg-background/30 focus-visible:ring-primary focus-visible:border-primary focus-visible:ring-1 transition-all duration-200",
+              firstNameErr && "border-destructive focus-visible:ring-destructive")}
+          />
+          {firstNameErr && <p className="text-xs text-destructive">{firstNameErr}</p>}
         </div>
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="lastName">Last name</Label>
-          <Input id="lastName" name="lastName" placeholder="Smith" autoComplete="family-name"
-            required disabled={isPending} className="h-11 border-border-color bg-background/30 focus-visible:ring-primary focus-visible:border-primary focus-visible:ring-1 transition-all duration-200" />
+          <Input
+            id="lastName" name="lastName" placeholder="Smith"
+            autoComplete="family-name" disabled={isPending}
+            onChange={() => setLastNameErr("")}
+            className={cn("h-11 border-border-color bg-background/30 focus-visible:ring-primary focus-visible:border-primary focus-visible:ring-1 transition-all duration-200",
+              lastNameErr && "border-destructive focus-visible:ring-destructive")}
+          />
+          {lastNameErr && <p className="text-xs text-destructive">{lastNameErr}</p>}
         </div>
       </FadeIn>
 
       {/* Email */}
       <FadeIn delay={0.12} className="flex flex-col gap-1.5">
         <Label htmlFor="email">Work email</Label>
-        <Input id="email" name="email" type="email" placeholder="you@cafe.com"
-          autoComplete="email" required disabled={isPending} className="h-11 border-border-color bg-background/30 focus-visible:ring-primary focus-visible:border-primary focus-visible:ring-1 transition-all duration-200" />
+        <Input
+          id="email" name="email" type="email" placeholder="you@cafe.com"
+          autoComplete="email" disabled={isPending}
+          onChange={() => setEmailErr("")}
+          className={cn("h-11 border-border-color bg-background/30 focus-visible:ring-primary focus-visible:border-primary focus-visible:ring-1 transition-all duration-200",
+            emailErr && "border-destructive focus-visible:ring-destructive")}
+        />
+        {emailErr && <p className="text-xs text-destructive">{emailErr}</p>}
       </FadeIn>
 
       {/* Password + strength */}
@@ -93,12 +140,11 @@ export function SignupForm() {
             type={showPassword ? "text" : "password"}
             placeholder="Min. 8 characters"
             autoComplete="new-password"
-            minLength={8}
-            required
             disabled={isPending}
             value={password}
-            onChange={(e) => { setPassword(e.target.value); setError(null); }}
-            className="h-11 pr-10 border-border-color bg-background/30 focus-visible:ring-primary focus-visible:border-primary focus-visible:ring-1 transition-all duration-200"
+            onChange={(e) => { setPassword(e.target.value); setPasswordErr(""); setError(null); }}
+            className={cn("h-11 pr-10 border-border-color bg-background/30 focus-visible:ring-primary focus-visible:border-primary focus-visible:ring-1 transition-all duration-200",
+              passwordErr && "border-destructive focus-visible:ring-destructive")}
           />
           <button
             type="button"
@@ -130,6 +176,7 @@ export function SignupForm() {
             </span>
           </div>
         )}
+        {passwordErr && <p className="text-xs text-destructive">{passwordErr}</p>}
       </FadeIn>
 
       {/* Error */}

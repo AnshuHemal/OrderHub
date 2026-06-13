@@ -496,19 +496,24 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         status: o.status === 'PAID' ? 'paid' : o.status === 'CANCELLED' ? 'cancelled' : 'draft',
         paymentMethodId: o.payment ? (o.payment.method === 'CASH' ? 1 : o.payment.method === 'CARD' ? 2 : 3) : null,
         paymentReference: o.payment ? o.payment.reference : null,
-        items: (o.items || []).map((it: any) => ({
-          id: it.id,
-          productId: it.menuItemId,
-          name: it.menuItem ? it.menuItem.name : "Item",
-          quantity: it.quantity,
-          unitPrice: it.unitPrice,
-          taxPercentage: 5.00,
-          taxAmount: it.unitPrice * it.quantity * 0.05,
-          discountAmount: 0,
-          total: it.unitPrice * it.quantity * 1.05,
-          status: it.status === 'PENDING' ? 'to_cook' : it.status === 'PREPARING' ? 'preparing' : 'completed',
-          completedAt: it.status === 'READY' || it.status === 'SERVED' ? new Date().toISOString() : undefined
-        })),
+        items: (o.items || []).map((it: any) => {
+          const unitPrice = Number(it.unitPrice ?? it.price ?? 0);
+          const quantity  = Number(it.quantity ?? 1);
+          const taxAmt    = unitPrice * quantity * 0.05;
+          return {
+            id: it.id,
+            productId: it.menuItemId,
+            name: it.menuItem ? it.menuItem.name : "Item",
+            quantity,
+            unitPrice,
+            taxPercentage: 5.00,
+            taxAmount:    Number(taxAmt.toFixed(2)),
+            discountAmount: 0,
+            total:        Number((unitPrice * quantity * 1.05).toFixed(2)),
+            status: it.status === 'PENDING' ? 'to_cook' : it.status === 'PREPARING' ? 'preparing' : 'completed',
+            completedAt: it.status === 'READY' || it.status === 'SERVED' ? new Date().toISOString() : undefined
+          };
+        }),
         createdAt: o.createdAt
       }));
       setOrders(mappedOrders);
