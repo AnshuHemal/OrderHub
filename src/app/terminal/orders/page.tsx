@@ -3,6 +3,7 @@
 import React, { useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useApp, Order, Customer } from "@/app/context/AppContext";
+import { downloadReceiptPDF } from "@/lib/receipt-pdf";
 
 function OrdersLogContent() {
   const router = useRouter();
@@ -312,11 +313,29 @@ function OrdersLogContent() {
             <div className="space-y-3 mt-4 text-xs">
               <button
                 onClick={() => {
-                  alert("Executing Print Spooler Connection...\nReceipt printed successfully!");
+                  if (!receiptOrder) return;
+                  downloadReceiptPDF({
+                    orderNumber: receiptOrder.orderNumber,
+                    createdAt: receiptOrder.createdAt,
+                    cashierName: currentUser?.name ?? "Cashier",
+                    guestName: receiptOrder.customerId
+                      ? (customers.find(c => c.id === receiptOrder.customerId)?.name ?? "Guest")
+                      : "Walk-in",
+                    tableNumber: receiptOrder.tableId
+                      ? (tables.find(t => t.id === receiptOrder.tableId)?.tableNumber ?? "—")
+                      : "Takeaway",
+                    items: receiptOrder.items.map(it => ({ name: it.name, quantity: it.quantity, total: it.total })),
+                    subtotal: receiptOrder.subtotal,
+                    tax: receiptOrder.tax,
+                    discounts: receiptOrder.discounts,
+                    total: receiptOrder.total,
+                    paymentMethod: paymentMethods.find(p => p.id === receiptOrder.paymentMethodId)?.name ?? "Cash",
+                    paymentReference: receiptOrder.paymentReference ?? undefined,
+                  });
                 }}
                 className="w-full py-2.5 bg-stone-900 hover:bg-stone-800 text-white font-bold rounded-xl flex items-center justify-center gap-1.5 shadow"
               >
-                🖨️ Print Thermal Receipt
+                🖨️ Print / Save PDF
               </button>
 
               <form onSubmit={handleEmailReceipt} className="space-y-2 border-t border-stone-100 dark:border-stone-800 pt-3">

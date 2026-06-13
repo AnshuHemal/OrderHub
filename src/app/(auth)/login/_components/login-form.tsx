@@ -11,6 +11,8 @@ import { Label } from "@/components/ui/label";
 import { signIn } from "@/lib/auth-client";
 import { FadeIn } from "@/components/motion/fade-in";
 
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
 export function LoginForm() {
   const searchParams = useSearchParams();
   const next = searchParams.get("next") ?? "/dashboard";
@@ -19,15 +21,35 @@ export function LoginForm() {
   const [isPending, setIsPending]       = useState(false);
   const [error, setError]               = useState<string | null>(null);
 
+  // Field-level errors
+  const [emailErr, setEmailErr]       = useState("");
+  const [passwordErr, setPasswordErr] = useState("");
+
+  function validateEmail(v: string) {
+    if (!v.trim())            return "Email is required.";
+    if (!EMAIL_RE.test(v))    return "Enter a valid email address.";
+    return "";
+  }
+  function validatePassword(v: string) {
+    if (!v) return "Password is required.";
+    return "";
+  }
+
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setError(null);
-    setIsPending(true);
 
     const form     = e.currentTarget;
     const email    = (form.elements.namedItem("email")    as HTMLInputElement).value.trim();
     const password = (form.elements.namedItem("password") as HTMLInputElement).value;
 
+    const eErr = validateEmail(email);
+    const pErr = validatePassword(password);
+    setEmailErr(eErr);
+    setPasswordErr(pErr);
+    if (eErr || pErr) return;
+
+    setIsPending(true);
     const { error: authError } = await signIn.email({ email, password, callbackURL: next });
 
     if (authError) {
@@ -50,10 +72,11 @@ export function LoginForm() {
           type="email"
           placeholder="you@cafe.com"
           autoComplete="email"
-          required
           disabled={isPending}
-          className="h-11 border-border-color bg-background/30 focus-visible:ring-primary focus-visible:border-primary focus-visible:ring-1 transition-all duration-200"
+          onChange={() => setEmailErr("")}
+          className={`h-11 border-border-color bg-background/30 focus-visible:ring-primary focus-visible:border-primary focus-visible:ring-1 transition-all duration-200 ${emailErr ? "border-destructive focus-visible:ring-destructive" : ""}`}
         />
+        {emailErr && <p className="text-xs text-destructive">{emailErr}</p>}
       </FadeIn>
 
       {/* Password */}
@@ -74,9 +97,9 @@ export function LoginForm() {
             type={showPassword ? "text" : "password"}
             placeholder="••••••••"
             autoComplete="current-password"
-            required
             disabled={isPending}
-            className="h-11 pr-10 border-border-color bg-background/30 focus-visible:ring-primary focus-visible:border-primary focus-visible:ring-1 transition-all duration-200"
+            onChange={() => setPasswordErr("")}
+            className={`h-11 pr-10 border-border-color bg-background/30 focus-visible:ring-primary focus-visible:border-primary focus-visible:ring-1 transition-all duration-200 ${passwordErr ? "border-destructive focus-visible:ring-destructive" : ""}`}
           />
           <button
             type="button"
@@ -88,6 +111,7 @@ export function LoginForm() {
             {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
           </button>
         </div>
+        {passwordErr && <p className="text-xs text-destructive">{passwordErr}</p>}
       </FadeIn>
 
       {/* Error */}

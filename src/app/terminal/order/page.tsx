@@ -4,11 +4,13 @@ import React, { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useApp, Product, Order, Customer } from "@/app/context/AppContext";
 import { UpiQr } from "@/components/shared/upi-qr";
+import { downloadReceiptPDF } from "@/lib/receipt-pdf";
 
 function OrderCheckoutContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const {
+    currentUser,
     products,
     categories,
     customers,
@@ -55,6 +57,14 @@ function OrderCheckoutContent() {
   const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
   const [selectedCustomerId, setSelectedCustomerId] = useState("");
   const [modalMode, setModalMode] = useState<"select" | "register">("select");
+  const [customerSaving, setCustomerSaving] = useState(false);
+  const [customerError, setCustomerError] = useState("");
+  const [custNameErr, setCustNameErr]   = useState("");
+  const [custEmailErr, setCustEmailErr] = useState("");
+  const [custPhoneErr, setCustPhoneErr] = useState("");
+
+  const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  const PHONE_RE = /^[+\d][\d\s\-().]{6,19}$/;
 
   // Pre-select first category by default if any
   useEffect(() => {
@@ -169,23 +179,41 @@ function OrderCheckoutContent() {
 
   const handleSaveCustomer = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!customerName) return;
 
-    const newCust = await createCustomer({
-      name: customerName,
-      email: customerEmail,
-      phone: customerPhone
-    });
-    
-    // Automatically link to order
-    if (newCust) {
-      linkCustomerToOrder(newCust.id);
+    // Field-level validation
+    const nErr = !customerName.trim() ? "Name is required." : "";
+    const eErr = customerEmail.trim() && !EMAIL_RE.test(customerEmail.trim())
+      ? "Enter a valid email address." : "";
+    const pErr = customerPhone.trim() && !PHONE_RE.test(customerPhone.trim())
+      ? "Enter a valid phone number (e.g. +1 555-0199)." : "";
+
+    setCustNameErr(nErr);
+    setCustEmailErr(eErr);
+    setCustPhoneErr(pErr);
+    if (nErr || eErr || pErr) return;
+
+    setCustomerSaving(true);
+    setCustomerError("");
+
+    try {
+      const newCust = await createCustomer({
+        name: customerName.trim(),
+        email: customerEmail.trim(),
+        phone: customerPhone.trim(),
+      });
+
+      if (newCust) {
+        linkCustomerToOrder(newCust.id);
+        setCustomerName(""); setCustomerEmail(""); setCustomerPhone("");
+        setCustNameErr(""); setCustEmailErr(""); setCustPhoneErr("");
+        setCustomerError("");
+        setShowCustomerModal(false);
+      }
+    } catch (err: any) {
+      setCustomerError(err?.message ?? "Failed to save guest. Please try again.");
+    } finally {
+      setCustomerSaving(false);
     }
-
-    setCustomerName("");
-    setCustomerEmail("");
-    setCustomerPhone("");
-    setShowCustomerModal(false);
   };
 
   const handleEmailReceipt = async (e: React.FormEvent) => {
@@ -382,7 +410,7 @@ function OrderCheckoutContent() {
 
                 {/* Price Display */}
                 <div className="w-16 text-right font-black text-xs text-stone-850 dark:text-white">
-                  ${item.total.toFixed(2)}
+                  ${(item.total ?? item.unitPrice * item.quantity).toFixed(2)}
                 </div>
               </div>
             ))
@@ -427,28 +455,36 @@ function OrderCheckoutContent() {
                 setDiscountSuccess("");
                 setShowDiscountModal(true);
               }}
-              className="py-2 border border-stone-200 dark:border-stone-800 hover:bg-stone-100 dark:hover:bg-stone-900 rounded-xl font-bold flex items-center justify-center gap-1 transition-colors text-stone-700 dark:text-stone-300"
+              disabled={currentOrder.items.length === 0}
+              className="py-2 border border-stone-200 dark:border-stone-800 hover:bg-stone-100 dark:hover:bg-stone-900 rounded-xl font-bold flex items-center justify-center gap-1 transition-colors text-stone-700 dark:text-stone-300 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               🏷️ Coupon Code
             </button>
             <button
               onClick={handleSendToKitchen}
-              disabled={currentOrder.items.length === 0}
+              disabled={currentOrder.items.length === 0 || (!!currentOrder.tableId && !linkedCustomer)}
               className="py-2 border border-stone-200 dark:border-stone-800 hover:bg-stone-100 dark:hover:bg-stone-900 rounded-xl font-bold flex items-center justify-center gap-1 transition-colors text-stone-700 dark:text-stone-300 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               🍳 Send to Kitchen
             </button>
           </div>
 
+          {/* Hint shown when table order has items but no guest yet */}
+          {!!currentOrder.tableId && currentOrder.items.length > 0 && !linkedCustomer && (
+            <p className="text-[11px] text-amber-600 dark:text-amber-400 font-semibold text-center">
+              ⚠️ Assign a guest above to enable kitchen &amp; payment
+            </p>
+          )}
+
           {/* Checkout Button */}
           <button
             onClick={() => {
-              if (currentOrder.items.length === 0) return;
+              if (currentOrder.items.length === 0 || (currentOrder.tableId && !linkedCustomer)) return;
               const firstPm = paymentMethods.find(p => p.isEnabled);
               if (firstPm) setSelectedPaymentId(firstPm.id);
               setShowCheckoutModal(true);
             }}
-            disabled={currentOrder.items.length === 0}
+            disabled={currentOrder.items.length === 0 || (!!currentOrder.tableId && !linkedCustomer)}
             className="w-full py-3 bg-primary hover:bg-primary-hover text-white text-sm font-extrabold rounded-2xl shadow-lg transition-all active:scale-[0.98] flex items-center justify-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             💳 Process Payment & Complete
@@ -589,51 +625,75 @@ function OrderCheckoutContent() {
             ) : (
               <form onSubmit={handleSaveCustomer} className="space-y-4 text-xs">
                 <div>
-                  <label className="block font-bold text-stone-500 mb-1">Full Name</label>
+                  <label className="block font-bold text-stone-500 mb-1">
+                    Full Name <span className="text-red-500">*</span>
+                  </label>
                   <input
                     type="text"
                     value={customerName}
-                    onChange={(e) => setCustomerName(e.target.value)}
+                    onChange={(e) => { setCustomerName(e.target.value); setCustNameErr(""); }}
                     placeholder="e.g. Sarah Connor"
-                    className="w-full px-3 py-2 bg-stone-50 dark:bg-stone-950 border border-stone-200 dark:border-stone-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary text-stone-900 dark:text-white"
-                    required
+                    disabled={customerSaving}
+                    className={`w-full px-3 py-2 bg-stone-50 dark:bg-stone-950 border rounded-xl focus:outline-none focus:ring-2 focus:ring-primary text-stone-900 dark:text-white ${custNameErr ? "border-red-400 focus:ring-red-400" : "border-stone-200 dark:border-stone-800"}`}
                   />
+                  {custNameErr && <p className="text-red-500 text-[11px] mt-0.5">{custNameErr}</p>}
                 </div>
                 <div>
-                  <label className="block font-bold text-stone-500 mb-1">Email Address</label>
+                  <label className="block font-bold text-stone-500 mb-1">
+                    Email Address <span className="text-stone-400 font-normal">(optional)</span>
+                  </label>
                   <input
-                    type="email"
+                    type="text"
                     value={customerEmail}
-                    onChange={(e) => setCustomerEmail(e.target.value)}
+                    onChange={(e) => { setCustomerEmail(e.target.value); setCustEmailErr(""); }}
                     placeholder="sarah@terminator.com"
-                    className="w-full px-3 py-2 bg-stone-50 dark:bg-stone-955 border border-stone-200 dark:border-stone-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary text-stone-900 dark:text-white"
-                    required
+                    disabled={customerSaving}
+                    className={`w-full px-3 py-2 bg-stone-50 dark:bg-stone-950 border rounded-xl focus:outline-none focus:ring-2 focus:ring-primary text-stone-900 dark:text-white ${custEmailErr ? "border-red-400 focus:ring-red-400" : "border-stone-200 dark:border-stone-800"}`}
                   />
+                  {custEmailErr && <p className="text-red-500 text-[11px] mt-0.5">{custEmailErr}</p>}
                 </div>
                 <div>
-                  <label className="block font-bold text-stone-500 mb-1">Phone Number (Optional)</label>
+                  <label className="block font-bold text-stone-500 mb-1">
+                    Phone Number <span className="text-stone-400 font-normal">(optional)</span>
+                  </label>
                   <input
                     type="text"
                     value={customerPhone}
-                    onChange={(e) => setCustomerPhone(e.target.value)}
+                    onChange={(e) => { setCustomerPhone(e.target.value); setCustPhoneErr(""); }}
                     placeholder="+1 555-0199"
-                    className="w-full px-3 py-2 bg-stone-50 dark:bg-stone-955 border border-stone-200 dark:border-stone-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary text-stone-900 dark:text-white"
+                    disabled={customerSaving}
+                    className={`w-full px-3 py-2 bg-stone-50 dark:bg-stone-950 border rounded-xl focus:outline-none focus:ring-2 focus:ring-primary text-stone-900 dark:text-white ${custPhoneErr ? "border-red-400 focus:ring-red-400" : "border-stone-200 dark:border-stone-800"}`}
                   />
+                  {custPhoneErr && <p className="text-red-500 text-[11px] mt-0.5">{custPhoneErr}</p>}
                 </div>
+
+                {customerError && (
+                  <p className="text-xs font-semibold text-red-500">{customerError}</p>
+                )}
 
                 <div className="flex gap-2 justify-end pt-2">
                   <button
                     type="button"
-                    onClick={() => setShowCustomerModal(false)}
-                    className="px-4 py-2 border border-stone-200 dark:border-stone-805 text-stone-500 rounded-xl font-bold"
+                    onClick={() => { setShowCustomerModal(false); setCustomerError(""); setCustNameErr(""); setCustEmailErr(""); setCustPhoneErr(""); }}
+                    disabled={customerSaving}
+                    className="px-4 py-2 border border-stone-200 dark:border-stone-805 text-stone-500 rounded-xl font-bold disabled:opacity-50"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
-                    className="px-4 py-2 bg-primary text-white rounded-xl font-bold shadow hover:bg-primary-hover transition-colors"
+                    disabled={customerSaving || !customerName.trim()}
+                    className="px-4 py-2 bg-primary text-white rounded-xl font-bold shadow hover:bg-primary-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                   >
-                    Link Guest Profile
+                    {customerSaving ? (
+                      <>
+                        <svg className="animate-spin h-3.5 w-3.5" viewBox="0 0 24 24" fill="none">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
+                        </svg>
+                        Saving...
+                      </>
+                    ) : "Link Guest Profile"}
                   </button>
                 </div>
               </form>
@@ -820,11 +880,29 @@ function OrderCheckoutContent() {
               <button
                 type="button"
                 onClick={() => {
-                  window.print();
+                  if (!receiptOrder) return;
+                  downloadReceiptPDF({
+                    orderNumber: receiptOrder.orderNumber,
+                    createdAt: receiptOrder.createdAt,
+                    cashierName: currentUser?.name ?? "Cashier",
+                    guestName: receiptOrder.customerId
+                      ? (customers.find(c => c.id === receiptOrder.customerId)?.name ?? "Guest")
+                      : "Walk-in",
+                    tableNumber: receiptOrder.tableId
+                      ? (tables.find(t => t.id === receiptOrder.tableId)?.tableNumber ?? "—")
+                      : "Takeaway",
+                    items: receiptOrder.items.map(it => ({ name: it.name, quantity: it.quantity, total: it.total })),
+                    subtotal: receiptOrder.subtotal,
+                    tax: receiptOrder.tax,
+                    discounts: receiptOrder.discounts,
+                    total: receiptOrder.total,
+                    paymentMethod: paymentMethods.find(p => p.id === receiptOrder.paymentMethodId)?.name ?? "Cash",
+                    paymentReference: receiptOrder.paymentReference ?? undefined,
+                  });
                 }}
                 className="px-4 py-2 border border-stone-200 dark:border-stone-800 text-stone-600 dark:text-stone-300 rounded-xl font-bold flex items-center gap-1 hover:bg-stone-50 dark:hover:bg-stone-800 transition-colors"
               >
-                🖨️ Print Ticket
+                🖨️ Print / Save PDF
               </button>
               <button
                 type="button"
