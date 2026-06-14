@@ -61,8 +61,10 @@ function OrdersLogContent() {
   const { success, error: toastError, info } = useToast();
   const confirm = useConfirm();
 
+  const isOrderInSession = (o: Order) => !o.sessionId || o.sessionId === activeSession.id;
+
   const filteredOrders = orders.filter((o) => {
-    if (o.sessionId !== activeSession.id) return false;
+    if (!isOrderInSession(o)) return false;
 
     // Filter by status tab
     const kStatus = o.kitchenStatus || (o.status === "paid" ? "PAID" : o.status === "cancelled" ? "CANCELLED" : "PENDING");
@@ -126,12 +128,12 @@ function OrdersLogContent() {
       {/* ── Status Tabs ── */}
       <div className="flex flex-wrap gap-1.5 rounded-2xl bg-stone-100 dark:bg-stone-800/40 p-1 md:max-w-fit">
         {[
-          { id: "all", label: "All Orders", count: orders.filter(o => o.sessionId === activeSession.id).length },
-          { id: "pending", label: "Pending", count: orders.filter(o => o.sessionId === activeSession.id && (o.kitchenStatus === "PENDING" || o.kitchenStatus === "CONFIRMED")).length },
-          { id: "preparing", label: "Preparing", count: orders.filter(o => o.sessionId === activeSession.id && o.kitchenStatus === "PREPARING").length },
-          { id: "ready", label: "Ready / Served", count: orders.filter(o => o.sessionId === activeSession.id && (o.kitchenStatus === "READY" || o.kitchenStatus === "SERVED")).length },
-          { id: "paid", label: "Paid", count: orders.filter(o => o.sessionId === activeSession.id && o.status === "paid" && !o.voidedAt).length },
-          { id: "cancelled", label: "Cancelled / Voided", count: orders.filter(o => o.sessionId === activeSession.id && (o.status === "cancelled" || !!o.voidedAt)).length },
+          { id: "all", label: "All Orders", count: orders.filter(o => isOrderInSession(o)).length },
+          { id: "pending", label: "Pending", count: orders.filter(o => isOrderInSession(o) && (o.kitchenStatus === "PENDING" || o.kitchenStatus === "CONFIRMED")).length },
+          { id: "preparing", label: "Preparing", count: orders.filter(o => isOrderInSession(o) && o.kitchenStatus === "PREPARING").length },
+          { id: "ready", label: "Ready / Served", count: orders.filter(o => isOrderInSession(o) && (o.kitchenStatus === "READY" || o.kitchenStatus === "SERVED")).length },
+          { id: "paid", label: "Paid", count: orders.filter(o => isOrderInSession(o) && o.status === "paid" && !o.voidedAt).length },
+          { id: "cancelled", label: "Cancelled / Voided", count: orders.filter(o => isOrderInSession(o) && (o.status === "cancelled" || !!o.voidedAt)).length },
         ].map((tab) => (
           <button
             key={tab.id}
