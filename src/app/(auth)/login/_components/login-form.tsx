@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { motion, AnimatePresence } from "motion/react";
@@ -20,6 +20,37 @@ export function LoginForm() {
   const [showPassword, setShowPassword] = useState(false);
   const [isPending, setIsPending]       = useState(false);
   const [error, setError]               = useState<string | null>(null);
+
+  // Parse Google OAuth hash parameters on load
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const hash = window.location.hash;
+    if (!hash) return;
+
+    const params = new URLSearchParams(hash.substring(1));
+    const accessToken = params.get("access_token");
+    if (!accessToken) return;
+
+    window.history.replaceState(null, "", window.location.pathname + window.location.search);
+
+    async function triggerGoogleLogin() {
+      setIsPending(true);
+      setError(null);
+
+      const { data, error: authError } = await signIn.google({ accessToken: accessToken! });
+
+      if (authError) {
+        setError(authError.message || "Google sign-in failed. Please try again.");
+        setIsPending(false);
+        return;
+      }
+
+      window.location.href = next;
+    }
+
+    triggerGoogleLogin();
+  }, [next]);
 
   // Field-level errors
   const [emailErr, setEmailErr]       = useState("");
@@ -135,7 +166,7 @@ export function LoginForm() {
       <FadeIn delay={0.16}>
         <Button 
           type="submit" 
-          className="mt-1 h-11 w-full gap-2 bg-gradient-to-r from-amber-600 to-primary text-white hover:from-amber-700 hover:to-primary-hover shadow-md shadow-amber-900/10 cursor-pointer transition-all duration-200" 
+          className="mt-1 h-11 w-full gap-2 bg-gradient-to-r from-blue-600 to-primary text-white hover:from-blue-700 hover:to-primary-hover shadow-md shadow-blue-900/10 cursor-pointer transition-all duration-200" 
           disabled={isPending}
         >
           {isPending ? (

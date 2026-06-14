@@ -1,7 +1,9 @@
 "use client";
 
-import React, { createContext, useContext, useState, useEffect } from "react";
+import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
 import { api } from "@/lib/api";
+import { getSocket } from "@/lib/socket";
+import { useToast } from "@/components/ui/toast";
 
 // ==========================================
 // TypeScript Interfaces
@@ -10,7 +12,7 @@ import { api } from "@/lib/api";
 export type UserRole = "admin" | "employee" | "OWNER" | "MANAGER" | "STAFF" | "KITCHEN";
 export type SessionStatus = "open" | "closed";
 export type OrderStatus = "draft" | "paid" | "cancelled" | "PENDING" | "CONFIRMED" | "PREPARING" | "READY" | "SERVED" | "PAID" | "CANCELLED";
-export type KitchenStage = "to_cook" | "preparing" | "completed" | "PENDING" | "PREPARING" | "READY" | "SERVED";
+export type KitchenStage = "to_cook" | "preparing" | "completed" | "PENDING" | "PREPARING" | "READY" | "SERVED" | "served";
 export type DiscountType = "percentage" | "fixed";
 export type PromoType = "product" | "order";
 export type BookingStatus = "pending" | "confirmed" | "cancelled";
@@ -29,6 +31,7 @@ export interface Category {
   name: string;
   color: string;
   isActive?: boolean;
+  preparationStation?: string;
 }
 
 export interface Product {
@@ -134,6 +137,7 @@ export interface Order {
   paymentReference: string | null;
   items: OrderItem[];
   createdAt: string;
+  completedAt?: string;
   notes?: string;
 }
 
@@ -147,6 +151,24 @@ export interface Booking {
   notes: string;
 }
 
+export interface Ingredient {
+  id: string;
+  name: string;
+  quantity: number;
+  unit: string;
+  minThreshold: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface RecipeIngredient {
+  id: string;
+  menuItemId: string;
+  ingredientId: string;
+  quantityRequired: number;
+  ingredient: { id: string; name: string; unit: string };
+}
+
 // ==========================================
 // Context Type Definition
 // ==========================================
@@ -157,6 +179,7 @@ interface AppContextType {
   activeSession: PosSession | null;
   sessionsList: PosSession[];
   loading: boolean;
+  socketConnected: boolean;
   login: (email: string, pass: string) => Promise<boolean>;
   signup: (name: string, email: string, pass: string) => Promise<boolean>;
   logout: () => void;
@@ -213,8 +236,9 @@ interface AppContextType {
   deleteCustomer: (id: string) => Promise<void>;
 
   // Booking Actions
-  createBooking: (booking: Omit<Booking, "id">) => void;
-  updateBookingStatus: (id: string, status: BookingStatus) => void;
+  createBooking: (booking: Omit<Booking, "id">) => Promise<any>;
+  updateBookingStatus: (id: string, status: BookingStatus) => Promise<void>;
+  deleteBooking: (id: string) => Promise<void>;
 
   // Order workflow
   currentOrder: Order | null;
@@ -233,11 +257,24 @@ interface AppContextType {
   createNewOrder: (tableId: string | null) => void;
 
   // KDS transitions
-  updateKdsStage: (orderId: string, stage: KitchenStage) => void;
+  updateKdsStage: (orderId: string, stage: KitchenStage, stationName?: string) => void;
   toggleKdsItemComplete: (orderId: string, itemId: string) => void;
 
   // Reset helper for fresh start
   resetAllData: () => void;
+
+  // Ingredient Inventory Actions
+  ingredients: Ingredient[];
+  fetchIngredients: () => Promise<void>;
+  createIngredient: (data: { name: string; quantity: number; unit: string; minThreshold: number }) => Promise<void>;
+  updateIngredient: (id: string, data: Partial<{ name: string; quantity: number; unit: string; minThreshold: number }>) => Promise<void>;
+  deleteIngredient: (id: string) => Promise<void>;
+
+  // Recipe Management Actions
+  recipes: RecipeIngredient[];
+  fetchRecipes: () => Promise<void>;
+  fetchRecipeForMenuItem: (menuItemId: string) => Promise<RecipeIngredient[]>;
+  updateRecipe: (menuItemId: string, ingredients: { ingredientId: string; quantityRequired: number }[]) => Promise<void>;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -312,10 +349,13 @@ const SEED_BOOKINGS: Booking[] = [
 // ==========================================
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { warning: toastWarning } = useToast();
+
   // Authentication & Session
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [activeSession, setActiveSession] = useState<PosSession | null>(null);
   const [sessionsList, setSessionsList] = useState<PosSession[]>([]);
+  const [socketConnected, setSocketConnected] = useState(false);
 
   // Database lists
   const [users, setUsers] = useState<User[]>([]);
@@ -329,6 +369,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [promotions, setPromotions] = useState<Promotion[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
   const [bookings, setBookings] = useState<Booking[]>([]);
+  const [ingredients, setIngredients] = useState<Ingredient[]>([]);
+  const [recipes, setRecipes] = useState<RecipeIngredient[]>([]);
 
   // POS Order view cart helper
   const [currentOrder, setCurrentOrder] = useState<Order | null>(null);
@@ -352,7 +394,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setPaymentMethods(getOrSeed<PaymentMethod[]>("payment_methods", SEED_PAYMENT_METHODS));
       setCoupons([]);
       setPromotions([]);
-      setBookings(getOrSeed<Booking[]>("bookings", SEED_BOOKINGS));
+      setBookings([]);
       setSessionsList(getOrSeed<PosSession[]>("sessions_list", []));
 
       const sess = localStorage.getItem("odoopos_active_session");
@@ -397,7 +439,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Sync local-only variables to localStorage
   useEffect(() => { if (paymentMethods.length > 0) saveState("payment_methods", paymentMethods); }, [paymentMethods]);
-  useEffect(() => { if (bookings.length > 0) saveState("bookings", bookings); }, [bookings]);
   useEffect(() => { saveState("sessions_list", sessionsList); }, [sessionsList]);
 
   // Sync state in real-time across tabs/windows on storage change
@@ -451,7 +492,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         id: c.id,
         name: c.name,
         color: c.color || "#EF4444",
-        isActive: c.isActive
+        isActive: c.isActive,
+        preparationStation: c.preparationStation || "General Kitchen"
       })));
 
       let flatItems: any[] = [];
@@ -510,7 +552,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             taxAmount:    Number(taxAmt.toFixed(2)),
             discountAmount: 0,
             total:        Number((unitPrice * quantity * 1.05).toFixed(2)),
-            status: it.status === 'PENDING' ? 'to_cook' : it.status === 'PREPARING' ? 'preparing' : 'completed',
+            status: it.status === 'PENDING' ? 'to_cook' : it.status === 'PREPARING' ? 'preparing' : it.status === 'READY' ? 'completed' : 'served',
             completedAt: it.status === 'READY' || it.status === 'SERVED' ? new Date().toISOString() : undefined
           };
         }),
@@ -570,25 +612,155 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
-  // Synchronize dynamic backend tables upon authenticated session
-  useEffect(() => {
-    if (currentUser) {
-      const loadAllData = async () => {
-        const isAdmin = currentUser.role === "admin" || currentUser.role === "OWNER" || currentUser.role === "MANAGER";
-        await Promise.all([
-          fetchFloorsAndTables(),
-          fetchMenu(),
-          fetchOrders(),
-          fetchCustomers(),
-          fetchCoupons(),
-          fetchPromotions(),
-          ...(isAdmin ? [fetchUsers()] : [])
-        ]);
-      };
-      loadAllData();
-      const interval = setInterval(loadAllData, 10000);
-      return () => clearInterval(interval);
+  const fetchPaymentMethods = async () => {
+    try {
+      const pmData = await api.get<PaymentMethod[]>('/settings/payment-methods');
+      setPaymentMethods(pmData);
+    } catch (err) {
+      console.error("fetchPaymentMethods error:", err);
     }
+  };
+
+  const fetchBookings = async () => {
+    try {
+      const data = await api.get<any[]>('/bookings');
+      setBookings(data.map(b => ({
+        id: b.id,
+        customerId: b.customerId,
+        tableId: b.tableId,
+        bookingTime: b.bookingTime,
+        guestsCount: b.guestsCount,
+        status: b.status,
+        notes: b.notes || ""
+      })));
+    } catch (err) {
+      console.error("fetchBookings error:", err);
+    }
+  };
+
+  const fetchIngredients = async () => {
+    try {
+      const data = await api.get<Ingredient[]>('/ingredients');
+      setIngredients(data);
+    } catch (err) {
+      console.error("fetchIngredients error:", err);
+    }
+  };
+
+  const fetchRecipes = async () => {
+    try {
+      const data = await api.get<RecipeIngredient[]>('/recipes');
+      setRecipes(data);
+    } catch (err) {
+      console.error("fetchRecipes error:", err);
+    }
+  };
+
+  // Synchronize data via WebSockets (with 10s HTTP fallback polling)
+  useEffect(() => {
+    if (!currentUser) {
+      const socket = getSocket();
+      if (socket.connected) {
+        socket.disconnect();
+      }
+      setSocketConnected(false);
+      return;
+    }
+
+    const socket = getSocket();
+
+    // 1. Initial Load of all data
+    const loadAllData = async () => {
+      const isAdmin = currentUser.role === "admin" || currentUser.role === "OWNER" || currentUser.role === "MANAGER";
+      await Promise.all([
+        fetchFloorsAndTables(),
+        fetchMenu(),
+        fetchOrders(),
+        fetchCustomers(),
+        fetchCoupons(),
+        fetchPromotions(),
+        fetchPaymentMethods(),
+        fetchBookings(),
+        fetchIngredients(),
+        fetchRecipes(),
+        ...(isAdmin ? [fetchUsers()] : [])
+      ]);
+    };
+    loadAllData();
+
+    // 2. Establish connection & bind event listeners
+    socket.connect();
+
+    const onConnect = () => {
+      setSocketConnected(true);
+    };
+
+    const onDisconnect = () => {
+      setSocketConnected(false);
+    };
+
+    const onOrdersUpdated = () => {
+      fetchOrders();
+    };
+
+    const onTablesUpdated = () => {
+      fetchFloorsAndTables();
+    };
+
+    const onBookingsUpdated = () => {
+      fetchBookings();
+    };
+
+    const onIngredientsUpdated = () => {
+      fetchIngredients();
+      fetchRecipes();
+    };
+
+    const onRecipesUpdated = () => {
+      fetchRecipes();
+    };
+
+    const onLowStockWarning = (payload: { ingredientName: string; currentQty: number; threshold: number }) => {
+      toastWarning(
+        `⚠️ Low Stock: ${payload.ingredientName}`,
+        `Only ${payload.currentQty} ${payload.currentQty === 1 ? 'unit' : 'units'} remaining (threshold: ${payload.threshold}). Please restock soon.`
+      );
+    };
+
+    socket.on("connect", onConnect);
+    socket.on("disconnect", onDisconnect);
+    socket.on("ordersUpdated", onOrdersUpdated);
+    socket.on("tablesUpdated", onTablesUpdated);
+    socket.on("bookingsUpdated", onBookingsUpdated);
+    socket.on("ingredientsUpdated", onIngredientsUpdated);
+    socket.on("recipesUpdated", onRecipesUpdated);
+    socket.on("lowStockWarning", onLowStockWarning);
+
+    // Initial check
+    if (socket.connected) {
+      setSocketConnected(true);
+    }
+
+    // 3. Fallback Interval (only run polling if socket is disconnected)
+    const interval = setInterval(() => {
+      if (!socket.connected) {
+        loadAllData();
+      }
+    }, 10000);
+
+    return () => {
+      socket.off("connect", onConnect);
+      socket.off("disconnect", onDisconnect);
+      socket.off("ordersUpdated", onOrdersUpdated);
+      socket.off("tablesUpdated", onTablesUpdated);
+      socket.off("bookingsUpdated", onBookingsUpdated);
+      socket.off("ingredientsUpdated", onIngredientsUpdated);
+      socket.off("recipesUpdated", onRecipesUpdated);
+      socket.off("lowStockWarning", onLowStockWarning);
+      socket.disconnect();
+      clearInterval(interval);
+      setSocketConnected(false);
+    };
   }, [currentUser]);
   // ==========================================
   // Helper functions: Calculations
@@ -885,13 +1057,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const tempId = `temp_${Date.now()}`;
     api.post<any>('/menu/categories', {
       name: cat.name,
-      color: cat.color
+      color: cat.color,
+      preparationStation: cat.preparationStation || "General Kitchen"
     }).then(() => fetchMenu());
 
     return {
       id: tempId,
       name: cat.name,
-      color: cat.color
+      color: cat.color,
+      preparationStation: cat.preparationStation
     };
   };
 
@@ -899,7 +1073,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     try {
       await api.put(`/menu/categories/${id}`, {
         name: cat.name,
-        color: cat.color
+        color: cat.color,
+        preparationStation: cat.preparationStation
       });
       await fetchMenu();
     } catch (err) {
@@ -1025,12 +1200,28 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // Payment Setup Actions
   // ==========================================
 
-  const togglePaymentMethod = (id: number) => {
-    setPaymentMethods(prev => prev.map(p => p.id === id ? { ...p, isEnabled: !p.isEnabled } : p));
+  const togglePaymentMethod = async (id: number) => {
+    const currentList = [...paymentMethods];
+    const updated = currentList.map(p => p.id === id ? { ...p, isEnabled: !p.isEnabled } : p);
+    setPaymentMethods(updated);
+    try {
+      await api.patch('/settings/payment-methods', updated);
+    } catch (err) {
+      console.error("togglePaymentMethod error saving to database:", err);
+      setPaymentMethods(currentList);
+    }
   };
 
-  const saveUpiId = (id: number, upiId: string) => {
-    setPaymentMethods(prev => prev.map(p => p.id === id ? { ...p, upiId } : p));
+  const saveUpiId = async (id: number, upiId: string) => {
+    const currentList = [...paymentMethods];
+    const updated = currentList.map(p => p.id === id ? { ...p, upiId } : p);
+    setPaymentMethods(updated);
+    try {
+      await api.patch('/settings/payment-methods', updated);
+    } catch (err) {
+      console.error("saveUpiId error saving to database:", err);
+      setPaymentMethods(currentList);
+    }
   };
 
   // ==========================================
@@ -1083,17 +1274,38 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // Bookings Actions
   // ==========================================
 
-  const createBooking = (booking: Omit<Booking, "id">) => {
-    const nextId = bookings.length > 0 ? String(Math.max(...bookings.map(b => parseInt(b.id) || 0)) + 1) : "1";
-    const newBooking: Booking = {
-      ...booking,
-      id: nextId
-    };
-    setBookings(prev => [...prev, newBooking]);
+  const createBooking = async (booking: Omit<Booking, "id">) => {
+    try {
+      const created = await api.post<any>('/bookings', {
+        customerId: booking.customerId,
+        tableId: booking.tableId,
+        bookingTime: booking.bookingTime,
+        guestsCount: booking.guestsCount,
+        notes: booking.notes
+      });
+      await fetchBookings();
+      return created;
+    } catch (err) {
+      console.error("createBooking error:", err);
+    }
   };
 
-  const updateBookingStatus = (id: string, status: BookingStatus) => {
-    setBookings(prev => prev.map(b => b.id === id ? { ...b, status } : b));
+  const updateBookingStatus = async (id: string, status: BookingStatus) => {
+    try {
+      await api.patch(`/bookings/${id}/status`, { status });
+      await fetchBookings();
+    } catch (err) {
+      console.error("updateBookingStatus error:", err);
+    }
+  };
+
+  const deleteBooking = async (id: string) => {
+    try {
+      await api.delete(`/bookings/${id}`);
+      await fetchBookings();
+    } catch (err) {
+      console.error("deleteBooking error:", err);
+    }
   };
 
   // ==========================================
@@ -1329,6 +1541,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const cancelDraftOrder = async (id: string) => {
     try {
+      // temp_ orders only exist in local state — never persisted to backend
+      if (id.startsWith("temp_")) {
+        setOrders((prev) => prev.filter((o) => o.id !== id));
+        if (currentOrder && currentOrder.id === id) setCurrentOrder(null);
+        return;
+      }
       await api.delete(`/orders/${id}`);
       await fetchOrders();
       if (currentOrder && currentOrder.id === id) {
@@ -1359,39 +1577,181 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // KDS transitions
   // ==========================================
 
-  const updateKdsStage = async (orderId: string, stage: KitchenStage) => {
+  const updateKdsStage = async (orderId: string, stage: KitchenStage, stationName?: string) => {
+    const oldOrders = [...orders];
+
+    const localItemStatus = 
+      stage === 'preparing' ? 'preparing' : 
+      stage === 'completed' ? 'completed' : 
+      stage === 'SERVED' || stage === 'served' ? 'served' : 
+      'to_cook';
+
+    const backendStatus = 
+      stage === 'preparing' ? 'PREPARING' : 
+      stage === 'completed' ? 'READY' : 
+      stage === 'SERVED' || stage === 'served' ? 'SERVED' : 
+      'PENDING';
+
+    // Optimistically update the UI state immediately
+    setOrders(prevOrders => prevOrders.map(o => {
+      if (o.id === orderId) {
+        return {
+          ...o,
+          items: o.items.map(item => {
+            const prod = products.find(p => p.id === item.productId);
+            const cat = categories.find(c => c.id === prod?.categoryId);
+            const itemStation = cat?.preparationStation || "General Kitchen";
+            
+            const isMatchingStation = !stationName || itemStation === stationName;
+            return {
+              ...item,
+              status: isMatchingStation ? localItemStatus : item.status
+            };
+          })
+        };
+      }
+      return o;
+    }));
+
     try {
-      const order = orders.find(o => o.id === orderId);
+      const order = oldOrders.find(o => o.id === orderId);
       if (!order) return;
+
+      const itemsToUpdate = order.items.filter(item => {
+        const prod = products.find(p => p.id === item.productId);
+        const cat = categories.find(c => c.id === prod?.categoryId);
+        const itemStation = cat?.preparationStation || "General Kitchen";
+        return !stationName || itemStation === stationName;
+      });
       
-      const backendStatus = stage === 'preparing' ? 'PREPARING' : stage === 'completed' ? 'READY' : 'PENDING';
+      // Update individual item statuses
+      await Promise.all(
+        itemsToUpdate.map(item => 
+          api.patch(`/orders/items/${item.id}/status`, { status: backendStatus })
+        )
+      );
+
+      // Recalculate parent order status
+      const updatedItems = order.items.map(item => {
+        const isToUpdate = itemsToUpdate.some(x => x.id === item.id);
+        return {
+          ...item,
+          status: isToUpdate ? localItemStatus : item.status
+        };
+      });
       
-      await Promise.all(order.items.map(item => 
-        api.patch(`/orders/items/${item.id}/status`, { status: backendStatus })
-      ));
+      const allServed = updatedItems.every(it => it.status === 'served');
+      const allReadyOrServed = updatedItems.every(it => it.status === 'completed' || it.status === 'served');
+      const anyPreparing = updatedItems.some(it => it.status === 'preparing');
       
-      await api.patch(`/orders/${orderId}/status`, { status: backendStatus });
+      let parentOrderStatus = 'PENDING';
+      if (allServed) parentOrderStatus = 'SERVED';
+      else if (allReadyOrServed) parentOrderStatus = 'READY';
+      else if (anyPreparing) parentOrderStatus = 'PREPARING';
+      
+      await api.patch(`/orders/${orderId}/status`, { status: parentOrderStatus });
       await fetchOrders();
     } catch (err) {
       console.error("updateKdsStage error:", err);
+      setOrders(oldOrders);
     }
   };
 
   const toggleKdsItemComplete = async (orderId: string, itemId: string) => {
-    try {
-      const order = orders.find(o => o.id === orderId);
-      if (!order) return;
-      const item = order.items.find(it => it.id === itemId);
-      if (!item) return;
+    const oldOrders = [...orders];
 
-      const nextStatus = item.status === 'completed' ? 'PREPARING' : 'READY';
-      await api.patch(`/orders/items/${itemId}/status`, { status: nextStatus });
-      
+    const order = orders.find(o => o.id === orderId);
+    if (!order) return;
+    const item = order.items.find(it => it.id === itemId);
+    if (!item) return;
+
+    const nextLocalStatus = (item.status === 'completed' || item.status === 'served') ? 'preparing' : 'completed';
+    const nextBackendStatus = (item.status === 'completed' || item.status === 'served') ? 'PREPARING' : 'READY';
+
+    // Optimistically update the UI state immediately
+    setOrders(prevOrders => prevOrders.map(o => {
+      if (o.id === orderId) {
+        return {
+          ...o,
+          items: o.items.map(it => {
+            if (it.id === itemId) {
+              return {
+                ...it,
+                status: nextLocalStatus
+              };
+            }
+            return it;
+          })
+        };
+      }
+      return o;
+    }));
+
+    try {
+      await api.patch(`/orders/items/${itemId}/status`, { status: nextBackendStatus });
       await fetchOrders();
     } catch (err) {
       console.error("toggleKdsItemComplete error:", err);
+      setOrders(oldOrders);
     }
   };
+  // ==========================================
+  // Ingredient Inventory Actions
+  // ==========================================
+
+  const createIngredient = async (data: { name: string; quantity: number; unit: string; minThreshold: number }) => {
+    try {
+      await api.post('/ingredients', data);
+      await fetchIngredients();
+    } catch (err) {
+      console.error("createIngredient error:", err);
+      throw err;
+    }
+  };
+
+  const updateIngredient = async (id: string, data: Partial<{ name: string; quantity: number; unit: string; minThreshold: number }>) => {
+    try {
+      await api.put(`/ingredients/${id}`, data);
+      await fetchIngredients();
+    } catch (err) {
+      console.error("updateIngredient error:", err);
+      throw err;
+    }
+  };
+
+  const deleteIngredient = async (id: string) => {
+    try {
+      await api.delete(`/ingredients/${id}`);
+      await fetchIngredients();
+    } catch (err) {
+      console.error("deleteIngredient error:", err);
+      throw err;
+    }
+  };
+
+  // ==========================================
+  // Recipe Management Actions
+  // ==========================================
+
+  const fetchRecipeForMenuItem = async (menuItemId: string): Promise<RecipeIngredient[]> => {
+    try {
+      return await api.get<RecipeIngredient[]>(`/recipes/${menuItemId}`);
+    } catch (err) {
+      console.error("fetchRecipeForMenuItem error:", err);
+      return [];
+    }
+  };
+
+  const updateRecipe = async (menuItemId: string, ingredientsList: { ingredientId: string; quantityRequired: number }[]) => {
+    try {
+      await api.put(`/recipes/${menuItemId}`, { ingredients: ingredientsList });
+      await fetchRecipes();
+    } catch (err) {
+      console.error("updateRecipe error:", err);
+      throw err;
+    }
+  };
+
   const resetAllData = () => {
     if (typeof window !== "undefined") {
       localStorage.removeItem("odoopos_users");
@@ -1439,6 +1799,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         logout,
         openSession,
         closeSession,
+        socketConnected,
         users,
         categories,
         products,
@@ -1476,6 +1837,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         deleteCustomer,
         createBooking,
         updateBookingStatus,
+        deleteBooking,
         currentOrder,
         setCurrentOrder,
         loadTableOrder,
@@ -1492,7 +1854,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         createNewOrder,
         updateKdsStage,
         toggleKdsItemComplete,
-        resetAllData
+        resetAllData,
+        ingredients,
+        fetchIngredients,
+        createIngredient,
+        updateIngredient,
+        deleteIngredient,
+        recipes,
+        fetchRecipes,
+        fetchRecipeForMenuItem,
+        updateRecipe
       }}
     >
       {children}

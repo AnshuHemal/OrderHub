@@ -108,13 +108,13 @@ function PaymentMethodCard({ pm, index, onToggle, onSaveUpi }: CardProps) {
       </div>
 
       {/* ── Title + description ──────────────────────────────────────────── */}
-      <div className="flex flex-col gap-1">
+      <div className="flex flex-col gap-1.5">
         <div className="flex items-center gap-2">
-          <h4 className="font-extrabold text-sm text-stone-800 dark:text-stone-100">
+          <h4 className="font-extrabold text-base md:text-lg text-stone-850 dark:text-stone-100">
             {meta.label}
           </h4>
           <span className={cn(
-            "rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider",
+            "rounded-full px-2 py-0.5 text-xs font-bold uppercase tracking-wider",
             pm.isEnabled
               ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400"
               : "bg-stone-100 text-stone-400 dark:bg-stone-800",
@@ -122,7 +122,7 @@ function PaymentMethodCard({ pm, index, onToggle, onSaveUpi }: CardProps) {
             {pm.isEnabled ? "Active" : "Disabled"}
           </span>
         </div>
-        <p className="text-xs leading-relaxed text-stone-500 dark:text-stone-400">
+        <p className="text-sm leading-relaxed text-stone-500 dark:text-stone-400">
           {meta.description}
         </p>
       </div>
@@ -134,14 +134,14 @@ function PaymentMethodCard({ pm, index, onToggle, onSaveUpi }: CardProps) {
           {/* Merchant UPI ID field */}
           <div className="flex flex-col gap-1.5">
             <div className="flex items-center justify-between">
-              <label className="text-[10px] font-bold uppercase tracking-wider text-stone-400">
+              <label className="text-xs font-bold uppercase tracking-wider text-stone-400">
                 Merchant UPI ID
               </label>
               {!editing && (
                 <button
                   type="button"
                   onClick={() => setEditing(true)}
-                  className="flex items-center gap-1 text-[10px] font-bold text-primary hover:underline"
+                  className="flex items-center gap-1 text-xs font-bold text-primary hover:underline"
                 >
                   <Pencil className="size-2.5" /> Edit
                 </button>
@@ -221,7 +221,7 @@ function PaymentMethodCard({ pm, index, onToggle, onSaveUpi }: CardProps) {
               <motion.p
                 initial={{ opacity: 0, y: -4 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="flex items-center gap-1 text-[10px] text-red-500"
+                className="flex items-center gap-1 text-xs text-red-500"
               >
                 <Info className="size-3" />
                 Must be in format: name@provider (e.g. cafe@ybl)
@@ -235,7 +235,7 @@ function PaymentMethodCard({ pm, index, onToggle, onSaveUpi }: CardProps) {
                   initial={{ opacity: 0, y: 4 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0 }}
-                  className="flex items-center gap-1.5 rounded-lg bg-emerald-50 px-3 py-2 text-[11px] font-bold text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-400"
+                  className="flex items-center gap-1.5 rounded-lg bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-400"
                 >
                   <ShieldCheck className="size-3.5" />
                   UPI ID saved — QR updated
@@ -246,7 +246,7 @@ function PaymentMethodCard({ pm, index, onToggle, onSaveUpi }: CardProps) {
 
           {/* Live QR preview */}
           <div className="flex flex-col gap-2">
-            <p className="text-[10px] font-bold uppercase tracking-wider text-stone-400">
+            <p className="text-xs font-bold uppercase tracking-wider text-stone-400">
               Live QR Preview
             </p>
             <div className="flex items-center gap-4">
@@ -260,7 +260,7 @@ function PaymentMethodCard({ pm, index, onToggle, onSaveUpi }: CardProps) {
                     ? "✅ Valid QR — ready to use"
                     : "⚠️ Set a valid UPI ID"}
                 </p>
-                <p className="text-[10px] leading-relaxed text-stone-400">
+                <p className="text-xs leading-relaxed text-stone-400">
                   This preview shows how the QR will appear to customers at checkout.
                   Amount is not pre-filled in the preview.
                 </p>
@@ -279,7 +279,7 @@ export default function PaymentsPage() {
   const { paymentMethods, togglePaymentMethod, saveUpiId } = useApp();
 
   return (
-    <div className="space-y-8 text-xs text-stone-800 dark:text-stone-200">
+    <div className="space-y-8 text-sm text-stone-800 dark:text-stone-200">
 
       {/* Header */}
       <motion.div

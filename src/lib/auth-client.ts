@@ -35,6 +35,26 @@ export const signIn = {
   // Placeholders for social login compatibility
   social: async (options?: any) => {
     return { data: null, error: { message: "OAuth is not supported in the NestJS backend yet." } };
+  },
+  google: async ({ accessToken }: { accessToken: string }) => {
+    try {
+      const res = await fetch(`${BASE}/api/auth/google`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ accessToken }),
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        return { error: { message: json.message || "Google sign-in failed" } };
+      }
+      const data = 'data' in json ? json.data : json;
+      if (data.accessToken) {
+        setCookie("session_token", data.accessToken);
+      }
+      return { data };
+    } catch (err: any) {
+      return { error: { message: err.message || "Network error. Please try again." } };
+    }
   }
 };
 
@@ -75,13 +95,40 @@ export const getSession = async () => {
 };
 
 export const emailOtp = {
-  sendVerificationOtp: async (options?: any) => {
-    return { error: { message: "Email OTP is not supported in this client." } };
+  sendVerificationOtp: async ({ email, type }: { email: string; type: string }) => {
+    try {
+      const res = await fetch(`${BASE}/api/auth/send-verification-otp`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, type }),
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        return { error: { message: json.message || "Failed to send OTP" } };
+      }
+      return { data: json };
+    } catch (err: any) {
+      return { error: { message: err.message || "Network error. Please try again." } };
+    }
   },
-  verifyEmail: async (options?: any) => {
-    return { error: { message: "Email verification is not supported in this client." } };
+  verifyEmail: async ({ email, otp }: { email: string; otp: string }) => {
+    try {
+      const res = await fetch(`${BASE}/api/auth/verify-email`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, otp }),
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        return { error: { message: json.message || "Verification failed" } };
+      }
+      return { data: json };
+    } catch (err: any) {
+      return { error: { message: err.message || "Network error. Please try again." } };
+    }
   },
   resetPassword: async (options?: any) => {
     return { error: { message: "Password reset is not supported in this client." } };
   }
 };
+

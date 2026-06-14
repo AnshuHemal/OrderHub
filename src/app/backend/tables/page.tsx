@@ -2,15 +2,13 @@
 
 import React, { useState, useEffect } from "react";
 import { useApp } from "@/app/context/AppContext";
+import { useToast } from "@/components/ui/toast";
 
 export default function TablesPage() {
   const {
-    floors,
-    tables,
-    createFloor,
-    createTable,
-    toggleTableStatus
+    floors, tables, createFloor, createTable, toggleTableStatus
   } = useApp();
+  const { success } = useToast();
 
   // Floor & Table states
   const [newFloorName, setNewFloorName] = useState("");
@@ -31,7 +29,7 @@ export default function TablesPage() {
     if (!newFloorName) return;
     createFloor(newFloorName);
     setNewFloorName("");
-    alert("New Floor created!");
+    success("Floor Created", `Floor "${newFloorName}" has been added successfully.`);
   };
 
   const handleTableSubmit = (e: React.FormEvent) => {
@@ -46,11 +44,11 @@ export default function TablesPage() {
 
     setTableNumber("");
     setShowTableForm(false);
-    alert(`Table ${tableNumber} created successfully!`);
+    success("Table Created", `Table ${tableNumber} has been added to the floor plan.`);
   };
 
   return (
-    <div className="space-y-8 animate-fade-in text-xs text-stone-800 dark:text-stone-200">
+    <div className="space-y-8 animate-fade-in text-sm text-stone-800 dark:text-stone-200">
       <div>
         <h2 className="text-2xl font-black text-stone-800 dark:text-stone-100 font-sans">Cafe Table layouts & Floorplans</h2>
         <p className="text-stone-500 mt-0.5">Design zones/floors and add customer dining tables.</p>
@@ -79,11 +77,16 @@ export default function TablesPage() {
 
           {/* List of zones */}
           <div className="pt-4 border-t border-stone-100 dark:border-stone-800 space-y-2">
-            <p className="font-bold text-[10px] text-stone-400 uppercase">Registered Zones:</p>
+            <p className="font-bold text-xs text-stone-400 uppercase">Registered Zones:</p>
             {floors.map(f => (
-              <div key={f.id} className="p-2 bg-stone-50 dark:bg-stone-950 border border-stone-100 dark:border-stone-800 rounded-lg flex justify-between font-bold text-stone-700 dark:text-stone-300">
+              <div key={f.id} className="p-2 bg-stone-50 dark:bg-stone-950 border border-stone-100 dark:border-stone-800 rounded-lg flex justify-between items-center font-bold text-stone-700 dark:text-stone-300">
                 <span>🏢 {f.name}</span>
-                <span className="text-stone-400">ID #{f.id}</span>
+                <span 
+                  className="text-stone-400 dark:text-stone-500 font-mono text-xs cursor-help select-all hover:text-stone-550 transition-colors"
+                  title={`Full Zone ID: ${f.id}`}
+                >
+                  #{f.id.length > 8 ? f.id.slice(-8) : f.id}
+                </span>
               </div>
             ))}
           </div>
@@ -162,14 +165,14 @@ export default function TablesPage() {
                       : "bg-white border-stone-200 dark:bg-stone-900 dark:border-stone-800 hover:shadow-md"
                   }`}
                 >
-                  <div className="flex justify-between items-center text-[10px] text-stone-400">
-                    <span className="font-semibold uppercase tracking-wider">{floor ? floor.name : "Zone"}</span>
+                  <div className="flex justify-between items-center text-xs text-stone-400 dark:text-stone-500">
+                    <span className="font-bold uppercase tracking-wider">{floor ? floor.name : "Zone"}</span>
                     <span className="font-mono">Seats: {table.seats}</span>
                   </div>
-                  <h4 className="font-black text-sm text-stone-800 dark:text-white">{table.tableNumber}</h4>
+                  <h4 className="font-black text-base text-stone-850 dark:text-white">{table.tableNumber}</h4>
                   
                   <div className="flex items-center justify-between border-t border-stone-100 dark:border-stone-800 pt-2.5">
-                    <span className={`text-[10px] font-bold uppercase ${
+                    <span className={`text-xs font-bold uppercase ${
                       table.status === "DIRTY"
                         ? "text-amber-600 dark:text-amber-400"
                         : table.status === "OCCUPIED"
@@ -182,7 +185,7 @@ export default function TablesPage() {
                     {table.status === "DIRTY" && (
                       <button
                         onClick={() => toggleTableStatus(table.id)}
-                        className="px-2.5 py-1 bg-green-500/10 hover:bg-green-500/20 text-success rounded text-[9px] font-extrabold uppercase tracking-wider transition-colors cursor-pointer"
+                        className="px-3.5 py-1.5 bg-green-500/10 hover:bg-green-500/20 text-success rounded-xl text-xs font-extrabold uppercase tracking-wider transition-colors cursor-pointer"
                       >
                         Clean Table
                       </button>

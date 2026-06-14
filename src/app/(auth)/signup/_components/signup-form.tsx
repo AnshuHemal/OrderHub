@@ -86,7 +86,8 @@ export function SignupForm() {
       return;
     }
 
-    window.location.href = "/dashboard";
+    const params = new URLSearchParams({ email, password: pw });
+    window.location.href = `/verify-email?${params.toString()}`;
   }
 
   return (
@@ -200,7 +201,7 @@ export function SignupForm() {
       <FadeIn delay={0.2}>
         <Button 
           type="submit" 
-          className="mt-1 h-11 w-full gap-2 bg-gradient-to-r from-amber-600 to-primary text-white hover:from-amber-700 hover:to-primary-hover shadow-md shadow-amber-900/10 cursor-pointer transition-all duration-200" 
+          className="mt-1 h-11 w-full gap-2 bg-gradient-to-r from-blue-600 to-primary text-white hover:from-blue-700 hover:to-primary-hover shadow-md shadow-blue-900/10 cursor-pointer transition-all duration-200" 
           disabled={isPending}
         >
           {isPending ? (

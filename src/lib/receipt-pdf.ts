@@ -53,14 +53,14 @@ function buildReceiptHTML(d: ReceiptData): string {
       <tr>
         <td style="padding:2px 0;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${it.name}</td>
         <td style="padding:2px 4px;text-align:center;">${it.quantity}</td>
-        <td style="padding:2px 0;text-align:right;">$${it.total.toFixed(2)}</td>
+        <td style="padding:2px 0;text-align:right;">₹${it.total.toFixed(2)}</td>
       </tr>`
     )
     .join("");
 
   const discountRow =
     d.discounts > 0
-      ? `<tr><td colspan="2" style="text-align:right;padding:1px 0;">Discounts:</td><td style="text-align:right;padding:1px 0;color:#dc2626;">-$${d.discounts.toFixed(2)}</td></tr>`
+      ? `<tr><td colspan="2" style="text-align:right;padding:1px 0;">Discounts:</td><td style="text-align:right;padding:1px 0;color:#dc2626;">-₹${d.discounts.toFixed(2)}</td></tr>`
       : "";
 
   return `<!DOCTYPE html>
@@ -98,7 +98,7 @@ function buildReceiptHTML(d: ReceiptData): string {
 <body>
   <!-- Header -->
   <div class="center" style="margin-bottom:8px;">
-    <h1>Odoo Cafe POS</h1>
+    <h1>OrderHub</h1>
     <div>Ground Floor, Main Block</div>
     <div>Phone: +1 555 CAFE</div>
     <div style="font-size:9px;color:#a8a29e;margin-top:2px;">─── TAX INVOICE ───</div>
@@ -130,10 +130,10 @@ function buildReceiptHTML(d: ReceiptData): string {
   <!-- Totals -->
   <div class="dashed"></div>
   <table class="totals">
-    <tr><td colspan="2" style="text-align:right;padding:1px 0;">Subtotal:</td><td style="text-align:right;padding:1px 0;">$${d.subtotal.toFixed(2)}</td></tr>
-    <tr><td colspan="2" style="text-align:right;padding:1px 0;">Tax:</td><td style="text-align:right;padding:1px 0;">$${d.tax.toFixed(2)}</td></tr>
+    <tr><td colspan="2" style="text-align:right;padding:1px 0;">Subtotal:</td><td style="text-align:right;padding:1px 0;">₹${d.subtotal.toFixed(2)}</td></tr>
+    <tr><td colspan="2" style="text-align:right;padding:1px 0;">Tax:</td><td style="text-align:right;padding:1px 0;">₹${d.tax.toFixed(2)}</td></tr>
     ${discountRow}
-    <tr class="grand-total"><td colspan="2" style="text-align:right;">TOTAL PAID:</td><td style="text-align:right;">$${d.total.toFixed(2)}</td></tr>
+    <tr class="grand-total"><td colspan="2" style="text-align:right;">TOTAL PAID:</td><td style="text-align:right;">₹${d.total.toFixed(2)}</td></tr>
   </table>
 
   <!-- Payment -->

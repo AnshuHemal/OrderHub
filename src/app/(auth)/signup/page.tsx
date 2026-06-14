@@ -19,7 +19,7 @@ export default function SignupPage() {
       <div className="glass-panel rounded-3xl px-8 py-9 shadow-xl relative overflow-hidden">
         
         {/* Top accent line */}
-        <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-amber-500 via-primary to-accent opacity-90" />
+        <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-blue-500 via-primary to-blue-600 opacity-90" />
 
         {/* Header */}
         <FadeIn direction="down" delay={0.05} className="mb-7 flex flex-col gap-1.5 text-center">
@@ -29,11 +29,25 @@ export default function SignupPage() {
           </p>
         </FadeIn>
 
+        {/* Google OAuth Button */}
+        <FadeIn delay={0.1}>
+          <OAuthButtons />
+        </FadeIn>
+
+        {/* Separator */}
+        <FadeIn direction="none" delay={0.14} className="my-6 flex items-center gap-3">
+          <Separator className="flex-1 opacity-25" />
+          <span className="text-[10px] text-stone-400 uppercase tracking-widest font-extrabold">or</span>
+          <Separator className="flex-1 opacity-25" />
+        </FadeIn>
+
         {/* Form */}
-        <SignupForm />
+        <FadeIn delay={0.18}>
+          <SignupForm />
+        </FadeIn>
 
         {/* Terms */}
-        <FadeIn direction="none" delay={0.32}>
+        <FadeIn direction="none" delay={0.25}>
           <p className="mt-5 text-center text-[10px] text-muted-foreground leading-normal">
             By creating an account you agree to our{" "}
             <Link href="/terms" className="underline underline-offset-4 hover:text-primary transition-colors">
@@ -43,6 +57,7 @@ export default function SignupPage() {
             <Link href="/privacy" className="underline underline-offset-4 hover:text-primary transition-colors">
               Privacy Policy
             </Link>
+            .
           </p>
         </FadeIn>
       </div>
@@ -51,7 +66,7 @@ export default function SignupPage() {
       <FadeIn direction="none" delay={0.36}>
         <p className="text-center text-sm text-muted-foreground">
           Already have an account?{" "}
-          <Link href="/login" className="font-semibold text-primary hover:text-accent underline-offset-4 hover:underline transition-colors">
+          <Link href="/login" className="font-semibold text-primary hover:text-primary-hover underline-offset-4 hover:underline transition-colors">
             Sign in
           </Link>
         </p>

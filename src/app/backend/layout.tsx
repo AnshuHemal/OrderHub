@@ -1,15 +1,49 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
+import Link from "next/link";
 import { useApp } from "@/app/context/AppContext";
+import { Logo } from "@/components/shared/logo";
+import { ThemeToggle } from "@/components/shared/theme-toggle";
+import { FadeIn } from "@/components/motion/fade-in";
+import { motion, AnimatePresence } from "motion/react";
+import { cn } from "@/lib/utils";
+import {
+  BarChart3,
+  Package,
+  Tags,
+  Map,
+  Ticket,
+  CreditCard,
+  Users,
+  Calendar,
+  Contact,
+  LogOut,
+  ChevronRight,
+  Sparkles,
+  ShieldAlert,
+  ArrowLeft,
+  FlaskConical,
+  ChefHat
+} from "lucide-react";
+
+function getInitials(name: string) {
+  if (!name) return "👤";
+  const parts = name.trim().split(/\s+/);
+  if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
+  return name.slice(0, 2).toUpperCase();
+}
 
 export default function BackendLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
-  const { currentUser, loading } = useApp();
+  const { currentUser, loading, logout } = useApp();
 
-  const isAdmin = currentUser?.role === "admin" || currentUser?.role === "OWNER" || currentUser?.role === "MANAGER";
+  const isAdmin =
+    currentUser?.role === "admin" ||
+    currentUser?.role === "OWNER" ||
+    currentUser?.role === "MANAGER";
 
   useEffect(() => {
     if (loading) return;
@@ -22,10 +56,23 @@ export default function BackendLayout({ children }: { children: React.ReactNode 
 
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-[#faf8f5] dark:bg-[#0c0a09] font-sans">
-        <div className="text-center space-y-4">
-          <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto"></div>
-          <p className="text-sm font-bold text-stone-600 dark:text-stone-300">Synchronizing dashboard...</p>
+      <div className="relative flex min-h-screen items-center justify-center bg-background font-sans">
+        {/* Background mesh */}
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-0 bg-[linear-gradient(to_right,var(--border)_1px,transparent_1px),linear-gradient(to_bottom,var(--border)_1px,transparent_1px)] bg-size-[4rem_4rem] opacity-35"
+        />
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_100%_60%_at_50%_0%,transparent_40%,var(--background)_100%)]"
+        />
+        <div className="relative z-10 text-center space-y-4">
+          <motion.div
+            animate={{ rotate: 360 }}
+            transition={{ repeat: Infinity, duration: 1, ease: "linear" }}
+            className="w-10 h-10 border-2 border-primary border-t-transparent rounded-full mx-auto"
+          />
+          <p className="text-xs font-bold tracking-tight text-muted-foreground">Synchronizing backend...</p>
         </div>
       </div>
     );
@@ -33,126 +80,157 @@ export default function BackendLayout({ children }: { children: React.ReactNode 
 
   if (!currentUser || !isAdmin) return null;
 
-  // Helper to determine if a sub-path is currently active
-  const isActive = (tab: string) => {
-    if (tab === "dashboard" && pathname === "/backend/analytics") return true;
-    return pathname === `/backend/${tab}`;
-  };
+  const menuItems = [
+    { href: "/backend/analytics", label: "Analytics Dashboard", icon: BarChart3 },
+    { href: "/backend/products", label: "Products Catalog", icon: Package },
+    { href: "/backend/categories", label: "Product Categories", icon: Tags },
+    { href: "/backend/tables", label: "Floors & Tables", icon: Map },
+    { href: "/backend/promos", label: "Coupons & Promotions", icon: Ticket },
+    { href: "/backend/payments", label: "Payment Settings", icon: CreditCard },
+    { href: "/backend/users", label: "Employee Registry", icon: Users },
+    { href: "/backend/bookings", label: "Bookings Log", icon: Calendar },
+    { href: "/backend/customers", label: "Guest Registry", icon: Contact },
+  ];
 
-  const getButtonClass = (tab: string) => {
-    return `w-full text-left px-4 py-3 rounded-xl font-bold transition-all flex items-center gap-2.5 ${
-      isActive(tab)
-        ? "bg-primary text-white shadow-md"
-        : "text-stone-600 dark:text-stone-400 hover:bg-stone-100 dark:hover:bg-stone-800"
-    }`;
-  };
+  const inventoryItems = [
+    { href: "/backend/inventory", label: "Ingredient Inventory", icon: FlaskConical },
+    { href: "/backend/recipes", label: "Recipe Manager", icon: ChefHat },
+  ];
 
   return (
-    <div className="min-h-screen flex flex-col md:flex-row bg-[#faf8f5] text-[#1c1917] dark:bg-[#0c0a09] dark:text-[#f5f5f4] font-sans">
-      
-      {/* SIDEBAR NAVIGATION */}
-      <aside className="w-full md:w-64 bg-white dark:bg-stone-900 border-r border-stone-200 dark:border-stone-800 flex flex-col">
-        {/* Brand header */}
-        <div className="p-6 border-b border-stone-100 dark:border-stone-800 flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-primary text-white text-xl font-bold flex items-center justify-center shadow-md">
-            ⚙️
-          </div>
-          <div>
-            <h1 className="font-black text-sm tracking-tight text-primary dark:text-amber-500">Cafe POS Backend</h1>
-            <p className="text-[10px] text-stone-500">Configurations & Reports</p>
-          </div>
-        </div>
+    <div className="relative flex min-h-screen md:h-screen flex-col bg-background text-foreground font-sans selection:bg-primary/10 selection:text-primary md:overflow-hidden">
+      {/* Background Grid Mesh */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0 bg-[linear-gradient(to_right,var(--border)_1px,transparent_1px),linear-gradient(to_bottom,var(--border)_1px,transparent_1px)] bg-size-[4rem_4rem] opacity-30"
+      />
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_100%_60%_at_50%_0%,transparent_40%,var(--background)_100%)]"
+      />
 
-        {/* Tab Items */}
-        <nav className="flex-1 p-4 space-y-1.5 text-xs">
-          <button
-            onClick={() => router.push("/backend/analytics")}
-            className={getButtonClass("dashboard")}
-          >
-            📊 Analytics Dashboard
-          </button>
-          <button
-            onClick={() => router.push("/backend/products")}
-            className={getButtonClass("products")}
-          >
-            📦 Products List
-          </button>
-          <button
-            onClick={() => router.push("/backend/categories")}
-            className={getButtonClass("categories")}
-          >
-            🏷️ Product Categories
-          </button>
-          <button
-            onClick={() => router.push("/backend/tables")}
-            className={getButtonClass("tables")}
-          >
-            🗺️ Floors & Tables
-          </button>
-          <button
-            onClick={() => router.push("/backend/promos")}
-            className={getButtonClass("promos")}
-          >
-            🎁 Coupons & Promotions
-          </button>
-          <button
-            onClick={() => router.push("/backend/payments")}
-            className={getButtonClass("payments")}
-          >
-            💳 Payment Setup
-          </button>
-          <button
-            onClick={() => router.push("/backend/users")}
-            className={getButtonClass("users")}
-          >
-            👥 Cashier Employees
-          </button>
-          <button
-            onClick={() => router.push("/backend/bookings")}
-            className={getButtonClass("bookings")}
-          >
-            📅 Bookings log
-          </button>
-          <button
-            onClick={() => router.push("/backend/customers")}
-            className={getButtonClass("customers")}
-          >
-            👥 Customer Registry
-          </button>
-
-          <div className="h-px bg-stone-200 dark:bg-stone-800 my-4"></div>
-
-          {/* Quick exits */}
-          <button
-            onClick={() => router.push("/terminal")}
-            className="w-full text-left px-4 py-2 hover:bg-stone-100 dark:hover:bg-stone-800 rounded-xl transition-all text-stone-500 font-semibold"
-          >
-            ← POS Terminal View
-          </button>
-          <button
-            onClick={() => router.push("/")}
-            className="w-full text-left px-4 py-2 hover:bg-stone-100 dark:hover:bg-stone-800 rounded-xl transition-all text-stone-500 font-semibold"
-          >
-            ⚙️ POS Sessions
-          </button>
-        </nav>
-
-        {/* Footer profile log */}
-        <div className="p-4 border-t border-stone-100 dark:border-stone-800 text-xs bg-stone-50 dark:bg-stone-900/50 flex items-center gap-3">
-          <div className="w-8 h-8 rounded-full bg-stone-200 dark:bg-stone-800 flex items-center justify-center font-black">
-            👤
-          </div>
-          <div>
-            <p className="font-bold text-stone-800 dark:text-stone-200">{currentUser.name}</p>
-            <p className="text-[10px] text-stone-400 capitalize">{currentUser.role}</p>
+      {/* TOPBAR NAVIGATION */}
+      <FadeIn
+        direction="down"
+        className="relative z-10 flex shrink-0 items-center justify-between border-b border-border bg-background/80 px-6 py-3.5 backdrop-blur-sm shadow-sm"
+      >
+        <div className="flex items-center gap-3">
+          <Logo size={24} />
+          <div className="hidden sm:flex items-center gap-2 px-2.5 py-0.5 rounded-full border border-primary/20 bg-primary/5 text-[10px] font-bold text-primary">
+            <Sparkles className="size-3" /> Admin Suite
           </div>
         </div>
-      </aside>
 
-      {/* MAIN CONTENT WORKSPACE PANEL */}
-      <main className="flex-1 p-8 overflow-y-auto max-w-7xl">
-        {children}
-      </main>
+        <div className="flex items-center gap-4">
+          <ThemeToggle />
+          <div className="h-4 w-px bg-border" />
+          <div className="flex items-center gap-2.5">
+            <div className="flex size-8 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-xs font-bold text-primary select-none">
+              {getInitials(currentUser.name)}
+            </div>
+            <div className="hidden md:flex flex-col text-left">
+              <span className="text-xs font-bold leading-tight">{currentUser.name}</span>
+              <span className="text-[10px] text-muted-foreground capitalize">{currentUser.role.toLowerCase()}</span>
+            </div>
+          </div>
+        </div>
+      </FadeIn>
+
+      {/* DASHBOARD WORKSPACE GRID */}
+      <div className="relative z-10 mx-auto flex w-full max-w-7xl flex-1 gap-8 px-6 py-8 flex-col md:flex-row md:overflow-hidden">
+        
+        {/* SIDEBAR LINKS */}
+        <FadeIn direction="down" delay={0.05} className="w-full md:w-60 shrink-0 md:h-full md:overflow-y-auto pr-1">
+          <nav className="flex flex-col gap-1.5" aria-label="Backend navigation">
+            <div className="mb-2 px-3 text-[10px] font-black uppercase tracking-wider text-muted-foreground flex items-center gap-2">
+              <ShieldAlert className="size-3 text-primary" /> Configurations
+            </div>
+            
+            {menuItems.map(({ href, label, icon: Icon }) => {
+              const isActive = pathname === href;
+              return (
+                <Link
+                  key={href}
+                  href={href}
+                  className={cn(
+                    "flex items-center justify-between rounded-xl px-3.5 py-2.5 text-sm font-semibold transition-all duration-200 group",
+                    isActive
+                      ? "bg-primary text-white shadow-md shadow-primary/10"
+                      : "text-muted-foreground hover:bg-stone-100 dark:hover:bg-stone-850 hover:text-foreground"
+                  )}
+                >
+                  <span className="flex items-center gap-2.5">
+                    <Icon className={cn("size-4 transition-colors", isActive ? "text-white" : "text-muted-foreground group-hover:text-primary")} />
+                    {label}
+                  </span>
+                  <ChevronRight className={cn("size-3 opacity-0 transition-all transform translate-x-1", isActive ? "opacity-100 translate-x-0" : "group-hover:opacity-40 group-hover:translate-x-0")} />
+                </Link>
+              );
+            })}
+
+            <div className="my-2 h-px bg-border" />
+
+            <div className="mb-2 px-3 text-[10px] font-black uppercase tracking-wider text-muted-foreground flex items-center gap-2">
+              <FlaskConical className="size-3 text-violet-400" /> Inventory & Recipes
+            </div>
+
+            {inventoryItems.map(({ href, label, icon: Icon }) => {
+              const isActive = pathname === href;
+              return (
+                <Link
+                  key={href}
+                  href={href}
+                  className={cn(
+                    "flex items-center justify-between rounded-xl px-3.5 py-2.5 text-sm font-semibold transition-all duration-200 group",
+                    isActive
+                      ? "bg-violet-600 text-white shadow-md shadow-violet-900/20"
+                      : "text-muted-foreground hover:bg-stone-100 dark:hover:bg-stone-850 hover:text-foreground"
+                  )}
+                >
+                  <span className="flex items-center gap-2.5">
+                    <Icon className={cn("size-4 transition-colors", isActive ? "text-white" : "text-muted-foreground group-hover:text-violet-400")} />
+                    {label}
+                  </span>
+                  <ChevronRight className={cn("size-3 opacity-0 transition-all transform translate-x-1", isActive ? "opacity-100 translate-x-0" : "group-hover:opacity-40 group-hover:translate-x-0")} />
+                </Link>
+              );
+            })}
+
+            <div className="my-3 h-px bg-border" />
+
+            <div className="mb-2 px-3 text-[10px] font-black uppercase tracking-wider text-muted-foreground">
+              Exits
+            </div>
+
+            <Link
+              href="/terminal"
+              className="flex items-center gap-2.5 rounded-xl px-3.5 py-2.5 text-sm font-semibold text-muted-foreground hover:bg-stone-100 dark:hover:bg-stone-850 hover:text-foreground transition-all"
+            >
+              <ArrowLeft className="size-4" /> POS Terminal
+            </Link>
+
+            <button
+              onClick={() => logout()}
+              className="flex items-center gap-2.5 rounded-xl px-3.5 py-2.5 text-sm font-semibold text-destructive hover:bg-destructive/5 transition-all text-left cursor-pointer"
+            >
+              <LogOut className="size-4" /> Sign Out
+            </button>
+          </nav>
+        </FadeIn>
+
+        {/* WORKSPACE AREA WITH ANIMATION CONTAINER */}
+        <main className="flex flex-1 flex-col min-w-0 md:h-full md:overflow-y-auto pr-1">
+          <motion.div
+            key={pathname}
+            initial={{ opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.15, ease: "easeOut" }}
+            className="flex flex-1 flex-col gap-6"
+          >
+            {children}
+          </motion.div>
+        </main>
+      </div>
     </div>
   );
 }

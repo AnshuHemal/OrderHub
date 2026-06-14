@@ -3,35 +3,53 @@
 import { useState, useEffect, Suspense } from "react";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { useApp } from "@/app/context/AppContext";
+import { motion, AnimatePresence } from "motion/react";
+import {
+  LayoutGrid, ShoppingCart, ClipboardList, Users,
+  Settings, ChefHat, LogOut, Menu, X, Search,
+  MapPin
+} from "lucide-react";
+import { cn } from "@/lib/utils";
+import { useConfirm } from "@/components/ui/confirm-dialog";
+import { Logo } from "@/components/shared/logo";
+
+// ─── Nav config ──────────────────────────────────────────────────────────────
+
+const NAV_ITEMS = [
+  { key: "tables",    label: "Floor Plan",   icon: LayoutGrid },
+  { key: "order",     label: "POS Order",    icon: ShoppingCart },
+  { key: "orders",    label: "Orders Log",   icon: ClipboardList },
+  { key: "customers", label: "Guests",       icon: Users },
+] as const;
+
+// ─── Layout ──────────────────────────────────────────────────────────────────
 
 export default function TerminalLayout({ children }: { children: React.ReactNode }) {
-  const router = useRouter();
+  const router   = useRouter();
   const pathname = usePathname();
+  const confirm  = useConfirm();
   const {
-    currentUser,
-    activeSession,
-    currentOrder,
-    tables,
-    closeSession,
-    loading
+    currentUser, activeSession, currentOrder,
+    tables, closeSession, loading,
   } = useApp();
 
-  const [showHamburger, setShowHamburger] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
 
-  // Security Check: Redirect to home page if no user or no active session (skip while loading)
+  // Security redirect
   useEffect(() => {
     if (loading) return;
-    if (!currentUser || !activeSession) {
-      router.push("/");
-    }
+    if (!currentUser || !activeSession) router.push("/");
   }, [currentUser, activeSession, loading, router]);
+
+  // Close menu on route change
+  useEffect(() => { setMenuOpen(false); }, [pathname]);
 
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-stone-100 dark:bg-stone-950 font-sans">
+      <div className="flex min-h-screen items-center justify-center bg-stone-100 dark:bg-stone-950">
         <div className="text-center space-y-4">
-          <div className="w-12 h-12 border-4 border-amber-500 border-t-transparent rounded-full animate-spin mx-auto"></div>
-          <p className="text-sm font-bold text-stone-600 dark:text-stone-300">Synchronizing session...</p>
+          <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto" />
+          <p className="text-sm font-bold text-stone-500 dark:text-stone-400">Synchronizing session…</p>
         </div>
       </div>
     );
@@ -39,200 +57,269 @@ export default function TerminalLayout({ children }: { children: React.ReactNode
 
   if (!currentUser || !activeSession) return null;
 
-  // Find active table details
+  const isActive = (key: string) => pathname === `/terminal/${key}`;
+
   const activeTable = currentOrder?.tableId
     ? tables.find((t) => t.id === currentOrder.tableId)
     : null;
 
-  const isActive = (tab: string) => {
-    return pathname === `/terminal/${tab}`;
-  };
+  const roleLabel =
+    currentUser.role === "OWNER"   ? "Owner"   :
+    currentUser.role === "MANAGER" ? "Manager" :
+    currentUser.role === "KITCHEN" ? "Kitchen" : "Cashier";
 
-  const getNavButtonClass = (tab: string) => {
-    return `px-4 py-1.5 rounded-lg text-sm font-semibold transition-all ${
-      isActive(tab)
-        ? "bg-white dark:bg-stone-700 shadow-sm text-primary dark:text-white"
-        : "text-stone-500 hover:text-stone-800 dark:hover:text-stone-300"
-    }`;
-  };
-
-  const getMobileNavClass = (tab: string) => {
-    return `flex flex-col items-center gap-0.5 ${isActive(tab) ? "text-primary font-bold" : ""}`;
-  };
+  const isAdmin = ["admin", "OWNER", "MANAGER"].includes(currentUser.role);
 
   return (
-    <div className="flex flex-col min-h-screen bg-stone-100 dark:bg-stone-955 font-sans">
-      {/* TOP NAVIGATION BAR */}
-      <header className="sticky top-0 z-40 bg-white/95 dark:bg-stone-900/95 backdrop-blur border-b border-stone-200 dark:border-stone-800 shadow-sm px-4 py-3 flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <div 
-            onClick={() => router.push("/")}
-            className="text-xl font-extrabold text-primary dark:text-amber-500 flex items-center gap-1 cursor-pointer hover:opacity-80 transition-opacity"
-          >
-            <span>☕</span>
-            <span>Cafe POS</span>
-          </div>
-          
-          {/* Quick Nav Options */}
-          <nav className="hidden md:flex items-center gap-1 bg-stone-100 dark:bg-stone-800 p-0.5 rounded-xl">
-            <button
-              onClick={() => router.push("/terminal/tables")}
-              className={getNavButtonClass("tables")}
-            >
-              🗺️ Floor Plan
-            </button>
-            <button
-              onClick={() => {
-                if (!currentOrder) {
-                  if (confirm("No active order. Create a Quick Counter Order (no table)?")) {
-                    router.push("/terminal/order");
-                  }
-                } else {
-                  router.push("/terminal/order");
-                }
-              }}
-              className={getNavButtonClass("order")}
-            >
-              🛒 POS Order
-            </button>
-            <button
-              onClick={() => router.push("/terminal/orders")}
-              className={getNavButtonClass("orders")}
-            >
-              📋 Orders Log
-            </button>
-            <button
-              onClick={() => router.push("/terminal/customers")}
-              className={getNavButtonClass("customers")}
-            >
-              👥 Customers
-            </button>
+    <div className="flex flex-col h-screen overflow-hidden bg-stone-100 dark:bg-stone-950 font-sans">
+
+      {/* ── HEADER ──────────────────────────────────────────── */}
+      <header className="sticky top-0 z-40 flex items-center justify-between gap-4 px-4 lg:px-6 py-3 bg-white/90 dark:bg-stone-900/90 backdrop-blur-xl border-b border-stone-200/80 dark:border-stone-800/80 shadow-sm">
+
+        {/* Left: Logo + Desktop Nav */}
+        <div className="flex items-center gap-5 min-w-0">
+          <Logo size={24} />
+
+          {/* Desktop pill nav */}
+          <nav className="hidden md:flex items-center gap-1 bg-stone-100 dark:bg-stone-800/80 p-1 rounded-2xl">
+            {NAV_ITEMS.map(({ key, label, icon: Icon }) => {
+              const active = isActive(key);
+              return (
+                <button
+                  key={key}
+                  onClick={async () => {
+                    if (key === "order" && !currentOrder) {
+                      const ok = await confirm({
+                        title: "No Active Order",
+                        message: "There is no active order. Would you like to go to the Floor Plan to select a table?",
+                        confirmLabel: "Go to Floor Plan",
+                        variant: "info",
+                      });
+                      if (ok) router.push("/terminal/tables");
+                      return;
+                    }
+                    router.push(`/terminal/${key}`);
+                  }}
+                  className={cn(
+                    "relative flex items-center gap-2 px-3.5 py-2 rounded-xl text-sm font-bold transition-all duration-200",
+                    active
+                      ? "bg-white dark:bg-stone-700 text-primary dark:text-white shadow-sm"
+                      : "text-stone-500 dark:text-stone-400 hover:text-stone-800 dark:hover:text-stone-200 hover:bg-white/60 dark:hover:bg-stone-700/50"
+                  )}
+                >
+                  <Icon className={cn("size-4", active ? "text-primary dark:text-white" : "")} />
+                  <span>{label}</span>
+                  {key === "order" && currentOrder && currentOrder.items.length > 0 && (
+                    <span className="absolute -top-1 -right-1 w-4 h-4 bg-primary text-white text-[9px] font-black rounded-full flex items-center justify-center">
+                      {currentOrder.items.reduce((s, i) => s + i.quantity, 0)}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
           </nav>
         </div>
 
-        {/* Search Bar / Context Panel */}
-        <div className="flex-1 max-w-md mx-6 hidden lg:block">
+        {/* Center: Search */}
+        <div className="flex-1 max-w-xs lg:max-w-sm hidden lg:block">
           <Suspense fallback={<div className="h-9" />}>
             <TerminalSearchBar pathname={pathname} />
           </Suspense>
         </div>
 
-        {/* Current Table Indicator, Employee and Hamburger Menu */}
-        <div className="flex items-center gap-3">
+        {/* Right: Table badge + User + Menu */}
+        <div className="flex items-center gap-3 shrink-0">
+          {/* Active table indicator */}
           {activeTable ? (
-            <div className="px-3 py-1 bg-amber-500/10 text-amber-600 dark:bg-amber-500/20 dark:text-amber-400 text-xs font-bold rounded-lg uppercase tracking-wider flex items-center gap-1.5 border border-amber-500/20">
-              <span className="w-1.5 h-1.5 bg-amber-500 rounded-full animate-pulse"></span>
+            <div className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 bg-primary/10 dark:bg-primary/15 text-primary border border-primary/20 rounded-xl text-xs font-black uppercase tracking-wide">
+              <span className="w-2 h-2 bg-primary rounded-full animate-pulse" />
+              <MapPin className="size-3" />
               {activeTable.tableNumber}
             </div>
           ) : currentOrder ? (
-            <div className="px-3 py-1 bg-stone-100 dark:bg-stone-850 text-stone-500 text-xs font-bold rounded-lg uppercase tracking-wider">
+            <div className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 bg-stone-100 dark:bg-stone-800 text-stone-500 rounded-xl text-xs font-bold uppercase tracking-wide">
               Takeaway
             </div>
-          ) : (
-            <div className="px-3 py-1 bg-stone-100 dark:bg-stone-850 text-stone-400 text-xs font-semibold rounded-lg italic">
-              No Table
-            </div>
-          )}
+          ) : null}
 
-          <div className="h-8 w-px bg-stone-200 dark:bg-stone-800"></div>
+          <div className="h-6 w-px bg-stone-200 dark:bg-stone-700 hidden sm:block" />
 
-          {/* User Profile display */}
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-full bg-stone-200 dark:bg-stone-700 text-primary dark:text-amber-500 flex items-center justify-center font-bold text-sm shadow-inner">
-              👤
+          {/* User chip */}
+          <div className="hidden sm:flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center font-black text-sm text-primary">
+              {currentUser.name.charAt(0).toUpperCase()}
             </div>
-            <div className="hidden sm:block text-left leading-none">
-              <p className="text-xs text-stone-400">
-                {currentUser.role === "OWNER"
-                  ? "Owner"
-                  : currentUser.role === "MANAGER"
-                  ? "Manager"
-                  : currentUser.role === "KITCHEN"
-                  ? "Kitchen"
-                  : "Cashier"}
-              </p>
-              <p className="text-sm font-semibold text-stone-800 dark:text-stone-200">{currentUser.name}</p>
+            <div className="leading-none">
+              <p className="text-[10px] text-stone-400 dark:text-stone-500 font-semibold uppercase tracking-wider">{roleLabel}</p>
+              <p className="text-sm font-bold text-stone-800 dark:text-stone-200 max-w-[100px] truncate">{currentUser.name}</p>
             </div>
           </div>
 
-          {/* Hamburger Trigger */}
+          {/* Hamburger */}
           <div className="relative">
             <button
-              onClick={() => setShowHamburger(!showHamburger)}
-              className="p-2 bg-stone-100 hover:bg-stone-200 dark:bg-stone-800 dark:hover:bg-stone-700 rounded-xl transition-colors text-stone-600 dark:text-stone-300"
+              onClick={() => setMenuOpen(!menuOpen)}
+              className={cn(
+                "p-2 rounded-xl transition-all border",
+                menuOpen
+                  ? "bg-primary/10 text-primary border-primary/20"
+                  : "bg-stone-100 dark:bg-stone-800 text-stone-600 dark:text-stone-300 border-transparent hover:bg-stone-200 dark:hover:bg-stone-700"
+              )}
+              aria-label="Open menu"
             >
-              ☰
-            </button>
-            {showHamburger && (
-              <div className="absolute right-0 mt-2 w-56 bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 rounded-2xl shadow-xl py-2 z-50 animate-fade-in text-sm text-[#1c1917] dark:text-[#f5f5f4]">
-                <p className="px-4 py-1.5 text-xs font-bold uppercase tracking-wider text-stone-400">Go to Views</p>
-                <button
-                  onClick={() => { setShowHamburger(false); router.push("/kitchen"); }}
-                  className="w-full text-left px-4 py-2 hover:bg-stone-100 dark:hover:bg-stone-800 flex items-center gap-2"
-                >
-                  🖥️ Kitchen Display (KDS)
-                </button>
-                {(currentUser.role === "admin" || currentUser.role === "OWNER" || currentUser.role === "MANAGER") && (
-                  <button
-                    onClick={() => { setShowHamburger(false); router.push("/backend"); }}
-                    className="w-full text-left px-4 py-2 hover:bg-stone-100 dark:hover:bg-stone-800 flex items-center gap-2"
-                  >
-                    ⚙️ Admin Settings panel
-                  </button>
+              <AnimatePresence mode="wait" initial={false}>
+                {menuOpen ? (
+                  <motion.span key="close" initial={{ rotate: -45, opacity: 0 }} animate={{ rotate: 0, opacity: 1 }} exit={{ rotate: 45, opacity: 0 }} transition={{ duration: 0.15 }}>
+                    <X className="size-5" />
+                  </motion.span>
+                ) : (
+                  <motion.span key="open" initial={{ rotate: 45, opacity: 0 }} animate={{ rotate: 0, opacity: 1 }} exit={{ rotate: -45, opacity: 0 }} transition={{ duration: 0.15 }}>
+                    <Menu className="size-5" />
+                  </motion.span>
                 )}
-                
-                <div className="h-px bg-stone-200 dark:bg-stone-800 my-2"></div>
-                <p className="px-4 py-1.5 text-xs font-bold uppercase tracking-wider text-stone-400">Navigation</p>
-                <button onClick={() => { router.push("/terminal/tables"); setShowHamburger(false); }} className="w-full text-left px-4 py-2 hover:bg-stone-100 dark:hover:bg-stone-800">🗺️ Floor Selector</button>
-                <button onClick={() => { router.push("/terminal/orders"); setShowHamburger(false); }} className="w-full text-left px-4 py-2 hover:bg-stone-100 dark:hover:bg-stone-800">📋 Session Orders</button>
-                <button onClick={() => { router.push("/terminal/customers"); setShowHamburger(false); }} className="w-full text-left px-4 py-2 hover:bg-stone-100 dark:hover:bg-stone-800 font-semibold">👥 Customers Directory</button>
-                
-                <div className="h-px bg-stone-200 dark:bg-stone-800 my-2"></div>
-                <button
-                  onClick={() => {
-                    if (confirm("Are you sure you want to CLOSE this POS Shift Session and review summary?")) {
-                      closeSession();
-                      router.push("/");
-                    }
-                  }}
-                  className="w-full text-left px-4 py-2 text-danger hover:bg-red-550 dark:hover:bg-red-950/20 font-semibold"
-                >
-                  🔒 Close shift session
-                </button>
-              </div>
-            )}
+              </AnimatePresence>
+            </button>
+
+            {/* Dropdown Menu */}
+            <AnimatePresence>
+              {menuOpen && (
+                <>
+                  <motion.div
+                    initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                    className="fixed inset-0 z-40"
+                    onClick={() => setMenuOpen(false)}
+                  />
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.95, y: -8 }}
+                    animate={{ opacity: 1, scale: 1, y: 0 }}
+                    exit={{ opacity: 0, scale: 0.95, y: -8 }}
+                    transition={{ type: "spring", stiffness: 400, damping: 30 }}
+                    className="absolute right-0 mt-2 w-60 z-50 bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 rounded-2xl shadow-xl overflow-hidden"
+                  >
+                    {/* User info row (mobile) */}
+                    <div className="px-4 py-3 border-b border-stone-100 dark:border-stone-800 flex items-center gap-3 sm:hidden">
+                      <div className="w-9 h-9 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center font-black text-primary">
+                        {currentUser.name.charAt(0).toUpperCase()}
+                      </div>
+                      <div>
+                        <p className="text-sm font-bold text-stone-800 dark:text-stone-200">{currentUser.name}</p>
+                        <p className="text-xs text-stone-400">{roleLabel}</p>
+                      </div>
+                    </div>
+
+                    {/* Go To Views */}
+                    <div className="py-1.5">
+                      <p className="px-4 py-1.5 text-[10px] font-bold uppercase tracking-widest text-stone-400">Go to Views</p>
+                      <MenuButton icon={ChefHat} label="Kitchen Display (KDS)" onClick={() => router.push("/kitchen")} />
+                      {isAdmin && (
+                        <MenuButton icon={Settings} label="Admin Settings Panel" onClick={() => router.push("/backend")} />
+                      )}
+                    </div>
+
+                    <div className="h-px bg-stone-100 dark:bg-stone-800 mx-3" />
+
+                    {/* Navigation */}
+                    <div className="py-1.5">
+                      <p className="px-4 py-1.5 text-[10px] font-bold uppercase tracking-widest text-stone-400">Navigation</p>
+                      {NAV_ITEMS.map(({ key, label, icon: Icon }) => (
+                        <MenuButton key={key} icon={Icon} label={label} onClick={() => router.push(`/terminal/${key}`)} active={isActive(key)} />
+                      ))}
+                    </div>
+
+                    <div className="h-px bg-stone-100 dark:bg-stone-800 mx-3" />
+
+                    {/* Close Session */}
+                    <div className="py-1.5">
+                      <button
+                        onClick={async () => {
+                          const ok = await confirm({
+                            title: "Close Shift Session",
+                            message: "Are you sure you want to close this POS shift session? You will be returned to the session summary.",
+                            confirmLabel: "Close Session",
+                            cancelLabel: "Keep Working",
+                            variant: "warning",
+                          });
+                          if (ok) { closeSession(); router.push("/"); }
+                        }}
+                        className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-bold text-red-500 hover:bg-red-500/5 transition-colors"
+                      >
+                        <LogOut className="size-4" />
+                        Close Shift Session
+                      </button>
+                    </div>
+                  </motion.div>
+                </>
+              )}
+            </AnimatePresence>
           </div>
         </div>
       </header>
 
-      {/* MOBILE PRODUCT SEARCH / FILTER OVERLAY FOR SEARCHABLE PATHS */}
+      {/* Mobile search bar (below header on searchable pages) */}
       <Suspense fallback={null}>
         <TerminalSearchBar pathname={pathname} mobile />
       </Suspense>
 
-      {/* MOBILE NAV (Bottom Bar for small viewports) */}
-      <footer className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white dark:bg-stone-900 border-t border-stone-200 dark:border-stone-800 grid grid-cols-4 py-2 text-center text-xs text-stone-500">
-        <button onClick={() => router.push("/terminal/tables")} className={getMobileNavClass("tables")}>
-          <span className="text-lg">🗺️</span> Floor Plan
-        </button>
-        <button onClick={() => router.push("/terminal/order")} className={getMobileNavClass("order")}>
-          <span className="text-lg">🛒</span> POS Order
-        </button>
-        <button onClick={() => router.push("/terminal/orders")} className={getMobileNavClass("orders")}>
-          <span className="text-lg">📋</span> Log
-        </button>
-        <button onClick={() => router.push("/terminal/customers")} className={getMobileNavClass("customers")}>
-          <span className="text-lg">👥</span> Guests
-        </button>
-      </footer>
-
-      {/* MAIN BODY LAYOUT */}
-      <main className="flex-1 flex overflow-hidden pb-12 md:pb-0">
+      {/* ── MAIN ─────────────────────────────────────────────── */}
+      <main className="flex-1 flex overflow-hidden pb-16 md:pb-0">
         {children}
       </main>
+
+      {/* ── MOBILE BOTTOM NAV ────────────────────────────────── */}
+      <footer className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 dark:bg-stone-900/95 backdrop-blur-xl border-t border-stone-200/80 dark:border-stone-800/80 grid grid-cols-4 py-1.5 safe-area-pb">
+        {NAV_ITEMS.map(({ key, label, icon: Icon }) => {
+          const active = isActive(key);
+          return (
+            <button
+              key={key}
+              onClick={() => router.push(`/terminal/${key}`)}
+              className={cn(
+                "flex flex-col items-center gap-1 py-1.5 text-[10px] font-bold transition-colors",
+                active ? "text-primary" : "text-stone-400 hover:text-stone-600 dark:hover:text-stone-300"
+              )}
+            >
+              <div className={cn(
+                "p-1.5 rounded-xl transition-all",
+                active ? "bg-primary/10" : ""
+              )}>
+                <Icon className="size-5" />
+              </div>
+              {label}
+            </button>
+          );
+        })}
+      </footer>
     </div>
   );
 }
+
+// ─── Menu button helper ───────────────────────────────────────────────────────
+
+function MenuButton({
+  icon: Icon, label, onClick, active,
+}: {
+  icon: React.ElementType;
+  label: string;
+  onClick: () => void;
+  active?: boolean;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={cn(
+        "w-full flex items-center gap-3 px-4 py-2.5 text-sm font-semibold transition-colors",
+        active
+          ? "text-primary bg-primary/5"
+          : "text-stone-700 dark:text-stone-300 hover:bg-stone-50 dark:hover:bg-stone-800"
+      )}
+    >
+      <Icon className={cn("size-4", active ? "text-primary" : "text-stone-400")} />
+      {label}
+    </button>
+  );
+}
+
+// ─── Search Bar ──────────────────────────────────────────────────────────────
 
 function TerminalSearchBar({ pathname, mobile }: { pathname: string; mobile?: boolean }) {
   const searchParams = useSearchParams();
@@ -241,55 +328,45 @@ function TerminalSearchBar({ pathname, mobile }: { pathname: string; mobile?: bo
 
   const handleSearchChange = (value: string) => {
     const params = new URLSearchParams(searchParams.toString());
-    if (value) {
-      params.set("search", value);
-    } else {
-      params.delete("search");
-    }
+    if (value) { params.set("search", value); } else { params.delete("search"); }
     router.replace(`${pathname}?${params.toString()}`);
   };
 
-  let searchPlaceholder = "";
-  let showSearchInput = false;
-
-  if (pathname === "/terminal/order") {
-    searchPlaceholder = "Quick search products by name...";
-    showSearchInput = true;
-  } else if (pathname === "/terminal/orders") {
-    searchPlaceholder = "Search orders (by order #, customer name)...";
-    showSearchInput = true;
-  } else if (pathname === "/terminal/customers") {
-    searchPlaceholder = "Search customer by name, email or phone...";
-    showSearchInput = true;
-  }
-
-  if (!showSearchInput) return null;
+  const placeholderMap: Record<string, string> = {
+    "/terminal/order":     "Search products…",
+    "/terminal/orders":    "Search orders by # or customer…",
+    "/terminal/customers": "Search by name, email, or phone…",
+  };
+  const placeholder = placeholderMap[pathname];
+  if (!placeholder) return null;
 
   if (mobile) {
     return (
-      <div className="p-3 bg-white dark:bg-stone-900 border-b border-stone-200 dark:border-stone-800 lg:hidden flex gap-2 animate-fade-in">
-        <input
-          type="text"
-          value={currentSearch}
-          onChange={(e) => handleSearchChange(e.target.value)}
-          placeholder="Search..."
-          className="flex-1 px-3 py-1.5 text-xs bg-stone-100 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 rounded-lg text-stone-900 dark:text-white"
-        />
+      <div className="px-4 py-2.5 bg-white dark:bg-stone-900 border-b border-stone-200 dark:border-stone-800 lg:hidden">
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-3.5 text-stone-400 pointer-events-none" />
+          <input
+            type="text"
+            value={currentSearch}
+            onChange={(e) => handleSearchChange(e.target.value)}
+            placeholder={placeholder}
+            className="w-full pl-9 pr-4 py-2 text-sm bg-stone-100 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 rounded-xl text-stone-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary/30 placeholder:text-stone-400"
+          />
+        </div>
       </div>
     );
   }
 
   return (
     <div className="relative">
-      <span className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-stone-400">🔍</span>
+      <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-stone-400 pointer-events-none" />
       <input
         type="text"
         value={currentSearch}
         onChange={(e) => handleSearchChange(e.target.value)}
-        placeholder={searchPlaceholder}
-        className="w-full pl-9 pr-4 py-1.5 bg-stone-100 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary dark:focus:ring-amber-500 text-sm text-stone-900 dark:text-white"
+        placeholder={placeholder}
+        className="w-full pl-10 pr-4 py-2 bg-stone-100 dark:bg-stone-800 border border-stone-200/80 dark:border-stone-700/80 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary text-sm text-stone-900 dark:text-white placeholder:text-stone-400 transition-all"
       />
     </div>
   );
 }
-

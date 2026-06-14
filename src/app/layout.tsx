@@ -1,8 +1,10 @@
 import type { Metadata, Viewport } from "next";
-import { Geist, Geist_Mono, Outfit } from "next/font/google";
+import { Geist, Geist_Mono, Inter } from "next/font/google";
 import "./globals.css";
 import { AppProvider } from "@/app/context/AppContext";
 import { ThemeProvider } from "@/components/theme-provider";
+import { ToastProvider } from "@/components/ui/toast";
+import { ConfirmProvider } from "@/components/ui/confirm-dialog";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -14,8 +16,8 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
-const outfit = Outfit({
-  variable: "--font-outfit",
+const inter = Inter({
+  variable: "--font-inter",
   subsets: ["latin"],
 });
 
@@ -27,7 +29,7 @@ export const metadata: Metadata = {
   description:
     "OrderHub — Modern Cafe & Restaurant POS. Manage tables, orders, kitchen tickets, billing and more.",
   keywords: [
-    "cafe pos",
+    "orderhub pos",
     "restaurant pos",
     "point of sale",
     "table management",
@@ -55,14 +57,18 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} ${outfit.variable} h-full antialiased`}
+      className={`${geistSans.variable} ${geistMono.variable} ${inter.variable} h-full antialiased`}
       suppressHydrationWarning
     >
       <body className="min-h-full flex flex-col bg-background text-foreground">
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
-          <AppProvider>
-            {children}
-          </AppProvider>
+          <ToastProvider>
+            <AppProvider>
+              <ConfirmProvider>
+                {children}
+              </ConfirmProvider>
+            </AppProvider>
+          </ToastProvider>
         </ThemeProvider>
       </body>
     </html>

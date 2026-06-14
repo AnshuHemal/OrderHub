@@ -20,7 +20,7 @@ export default function LoginPage() {
       <div className="glass-panel rounded-3xl px-8 py-9 shadow-xl relative overflow-hidden">
         
         {/* Top accent line */}
-        <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-amber-500 via-primary to-accent opacity-90" />
+        <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-blue-500 via-primary to-blue-600 opacity-90" />
 
         {/* Header */}
         <FadeIn direction="down" delay={0.05} className="mb-7 flex flex-col gap-1.5 text-center">
@@ -30,17 +30,31 @@ export default function LoginPage() {
           </p>
         </FadeIn>
 
+        {/* Google OAuth Button */}
+        <FadeIn delay={0.1}>
+          <OAuthButtons />
+        </FadeIn>
+
+        {/* Separator */}
+        <FadeIn direction="none" delay={0.14} className="my-6 flex items-center gap-3">
+          <Separator className="flex-1 opacity-25" />
+          <span className="text-[10px] text-stone-400 uppercase tracking-widest font-extrabold">or</span>
+          <Separator className="flex-1 opacity-25" />
+        </FadeIn>
+
         {/* Form */}
-        <Suspense>
-          <LoginForm />
-        </Suspense>
+        <FadeIn delay={0.18}>
+          <Suspense fallback={<div className="h-40 animate-pulse bg-stone-50 dark:bg-stone-900 rounded-xl" />}>
+            <LoginForm />
+          </Suspense>
+        </FadeIn>
       </div>
 
       {/* Footer */}
       <FadeIn direction="none" delay={0.3}>
         <p className="text-center text-sm text-muted-foreground">
           Don&apos;t have an account?{" "}
-          <Link href="/signup" className="font-semibold text-primary hover:text-accent underline-offset-4 hover:underline transition-colors">
+          <Link href="/signup" className="font-semibold text-primary hover:text-primary-hover underline-offset-4 hover:underline transition-colors">
             Create one free
           </Link>
         </p>
