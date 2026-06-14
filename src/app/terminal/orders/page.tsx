@@ -193,9 +193,14 @@ function OrdersLogContent() {
                   let statusCfg = KITCHEN_STATUS_CONFIG[kStatus as keyof typeof KITCHEN_STATUS_CONFIG] || KITCHEN_STATUS_CONFIG.PENDING;
                   
                   if (isVoided) {
-                    statusCfg = { label: "Voided", icon: XCircle, cls: "bg-red-500/10 text-red-500 border border-red-500/20" };
+                    const isRefundVoid = order.voidReason?.startsWith("Refunded:") || hasRefunds;
+                    if (isRefundVoid) {
+                      statusCfg = { label: "Refunded", icon: RefreshCcw, cls: "bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20" };
+                    } else {
+                      statusCfg = { label: "Voided", icon: XCircle, cls: "bg-red-500/10 text-red-500 border border-red-500/20" };
+                    }
                   } else if (hasRefunds) {
-                    statusCfg = { label: "Refunded", icon: RefreshCcw, cls: "bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20" };
+                    statusCfg = { label: "Partially Refunded", icon: RefreshCcw, cls: "bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20" };
                   }
                   
                   const StatusIcon = statusCfg.icon;
@@ -338,8 +343,14 @@ function OrdersLogContent() {
               )}
               {viewingOrder.voidedAt && (
                 <div className="flex justify-between text-red-500 font-black">
-                  <span>VOIDED/REFUNDED</span>
+                  <span>{viewingOrder.voidReason?.startsWith("Refunded:") ? "FULLY REFUNDED" : "VOIDED"}</span>
                   <span>-₹{viewingOrder.total.toFixed(2)}</span>
+                </div>
+              )}
+              {viewingOrder.refunds && viewingOrder.refunds.length > 0 && !viewingOrder.voidedAt && (
+                <div className="flex justify-between text-red-500 font-semibold">
+                  <span>Total Refunded</span>
+                  <span>-₹{viewingOrder.refunds.reduce((sum: number, r: any) => sum + r.amount, 0).toFixed(2)}</span>
                 </div>
               )}
               <div className="h-px bg-stone-200 dark:bg-stone-800 my-2" />
@@ -349,6 +360,12 @@ function OrdersLogContent() {
                   ₹{viewingOrder.total.toFixed(2)}
                 </span>
               </div>
+              {viewingOrder.refunds && viewingOrder.refunds.length > 0 && !viewingOrder.voidedAt && (
+                <div className="flex justify-between font-bold text-amber-600 dark:text-amber-500">
+                  <span>Net Paid</span>
+                  <span>₹{(viewingOrder.total - viewingOrder.refunds.reduce((sum: number, r: any) => sum + r.amount, 0)).toFixed(2)}</span>
+                </div>
+              )}
             </div>
 
             {/* Refund history list */}
