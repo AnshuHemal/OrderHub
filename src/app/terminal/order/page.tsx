@@ -1371,50 +1371,52 @@ function OrderCheckoutContent() {
             </form>
 
             {/* Actions */}
-            <div className="flex gap-3 pt-2 border-t border-stone-100 dark:border-stone-800">
-              <button
-                type="button"
-                onClick={() => {
-                  if (receiptOrder) {
-                    printOrder(receiptOrder, false);
-                  }
-                }}
-                className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-stone-900 text-white dark:bg-stone-100 dark:text-stone-900 rounded-xl font-bold hover:bg-stone-800 dark:hover:bg-stone-200 transition-colors"
-              >
-                <Printer className="size-4" /> Print Receipt
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  if (!receiptOrder) return;
-                  downloadReceiptPDF({
-                    orderNumber: receiptOrder.orderNumber, createdAt: receiptOrder.createdAt,
-                    cashierName: currentUser?.name ?? "Cashier",
-                    guestName: receiptOrder.customerId ? (customers.find((c) => c.id === receiptOrder.customerId)?.name ?? "Guest") : "Walk-in",
-                    tableNumber: receiptOrder.tableId ? (tables.find((t) => t.id === receiptOrder.tableId)?.tableNumber ?? "—") : "Takeaway",
-                    items: receiptOrder.items.map((it) => {
-                      const modsList = it.selectedModifiers && (it.selectedModifiers as any).length > 0
-                        ? ` [${(it.selectedModifiers as any).map((m: any) => m.name).join(", ")}]`
-                        : "";
-                      return {
-                        name: `${it.name}${modsList}`,
-                        quantity: it.quantity,
-                        total: it.total
-                      };
-                    }),
-                    subtotal: receiptOrder.subtotal, tax: receiptOrder.tax, discounts: receiptOrder.discounts, total: receiptOrder.total,
-                    paymentMethod: paymentMethods.find((p) => p.id === receiptOrder.paymentMethodId)?.name ?? "Cash",
-                    paymentReference: receiptOrder.paymentReference ?? undefined,
-                  });
-                }}
-                className="flex-1 flex items-center justify-center gap-2 py-2.5 border border-stone-200 dark:border-stone-800 text-stone-600 dark:text-stone-300 rounded-xl font-bold hover:bg-stone-50 dark:hover:bg-stone-800 transition-colors"
-              >
-                <FileText className="size-4" /> Print PDF
-              </button>
+            <div className="space-y-3 pt-4 border-t border-stone-100 dark:border-stone-800">
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (receiptOrder) {
+                      printOrder(receiptOrder, false);
+                    }
+                  }}
+                  className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-stone-900 text-white dark:bg-stone-100 dark:text-stone-900 rounded-xl font-bold hover:bg-stone-800 dark:hover:bg-stone-200 transition-colors cursor-pointer"
+                >
+                  <Printer className="size-4 shrink-0" /> Print Receipt
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!receiptOrder) return;
+                    downloadReceiptPDF({
+                      orderNumber: receiptOrder.orderNumber, createdAt: receiptOrder.createdAt,
+                      cashierName: currentUser?.name ?? "Cashier",
+                      guestName: receiptOrder.customerId ? (customers.find((c) => c.id === receiptOrder.customerId)?.name ?? "Guest") : "Walk-in",
+                      tableNumber: receiptOrder.tableId ? (tables.find((t) => t.id === receiptOrder.tableId)?.tableNumber ?? "—") : "Takeaway",
+                      items: receiptOrder.items.map((it) => {
+                        const modsList = it.selectedModifiers && (it.selectedModifiers as any).length > 0
+                          ? ` [${(it.selectedModifiers as any).map((m: any) => m.name).join(", ")}]`
+                          : "";
+                        return {
+                          name: `${it.name}${modsList}`,
+                          quantity: it.quantity,
+                          total: it.total
+                        };
+                      }),
+                      subtotal: receiptOrder.subtotal, tax: receiptOrder.tax, discounts: receiptOrder.discounts, total: receiptOrder.total,
+                      paymentMethod: paymentMethods.find((p) => p.id === receiptOrder.paymentMethodId)?.name ?? "Cash",
+                      paymentReference: receiptOrder.paymentReference ?? undefined,
+                    });
+                  }}
+                  className="flex-1 flex items-center justify-center gap-2 py-2.5 border border-stone-200 dark:border-stone-800 text-stone-600 dark:text-stone-300 rounded-xl font-bold hover:bg-stone-50 dark:hover:bg-stone-800 transition-colors cursor-pointer"
+                >
+                  <FileText className="size-4 shrink-0" /> Print PDF
+                </button>
+              </div>
               <button
                 type="button"
                 onClick={() => setShowReceiptModal(false)}
-                className="flex-1 py-2.5 bg-primary hover:bg-primary-hover text-white font-bold rounded-xl shadow transition-all active:scale-95 animate-pulse"
+                className="w-full py-2.5 bg-primary hover:bg-primary-hover text-white font-bold rounded-xl shadow transition-all active:scale-95 animate-pulse cursor-pointer"
               >
                 Close Receipt
               </button>
