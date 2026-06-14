@@ -109,7 +109,7 @@ export default function AnalyticsPage() {
     }
 
     // 3. Session filter
-    if (filterSessionId !== "all" && order.sessionId !== parseInt(filterSessionId)) {
+    if (filterSessionId !== "all" && order.sessionId !== filterSessionId) {
       return false;
     }
 
@@ -151,8 +151,8 @@ export default function AnalyticsPage() {
   paidOrders.forEach((order) => {
     if (order.tableId && order.completedAt) {
       const durationMs = new Date(order.completedAt).getTime() - new Date(order.createdAt).getTime();
-      // Only include logical occupancies between 2 minutes and 4 hours
-      if (durationMs >= 2 * 60 * 1000 && durationMs <= 4 * 60 * 60 * 1000) {
+      // Include all logical occupancies (from 1 second to 4 hours) to support testing/simulation data
+      if (durationMs >= 1000 && durationMs <= 4 * 60 * 60 * 1000) {
         if (!tableOccupancies[order.tableId]) {
           const tableInfo = tables.find(t => t.id === order.tableId);
           tableOccupancies[order.tableId] = {
@@ -170,20 +170,20 @@ export default function AnalyticsPage() {
   const tableTurnoverList = Object.entries(tableOccupancies).map(([tableId, val]) => ({
     tableId,
     tableNumber: val.tableNum,
-    avgOccupancyMins: Math.round(val.totalTimeMs / (60 * 1000) / val.count),
+    avgOccupancyMins: Math.max(1, Math.round(val.totalTimeMs / (60 * 1000) / val.count)),
     turnovers: val.count
   })).sort((a, b) => b.turnovers - a.turnovers);
 
   const overallTableOrders = paidOrders.filter(o => o.tableId && o.completedAt);
   const totalOccupancyMs = overallTableOrders.reduce((sum, o) => {
     const duration = new Date(o.completedAt!).getTime() - new Date(o.createdAt).getTime();
-    return (duration >= 2 * 60 * 1000 && duration <= 4 * 60 * 60 * 1000) ? sum + duration : sum;
+    return (duration >= 1000 && duration <= 4 * 60 * 60 * 1000) ? sum + duration : sum;
   }, 0);
   const validTableOrdersCount = overallTableOrders.filter(o => {
     const d = new Date(o.completedAt!).getTime() - new Date(o.createdAt).getTime();
-    return d >= 2 * 60 * 1000 && d <= 4 * 60 * 60 * 1000;
+    return d >= 1000 && d <= 4 * 60 * 60 * 1000;
   }).length;
-  const avgOccupancyMins = validTableOrdersCount > 0 ? Math.round(totalOccupancyMs / (60 * 1000) / validTableOrdersCount) : 38; // standard default
+  const avgOccupancyMins = validTableOrdersCount > 0 ? Math.max(1, Math.round(totalOccupancyMs / (60 * 1000) / validTableOrdersCount)) : 38; // standard default
 
   // 3. Top-Selling Pairs Recommender (Association Rules Algorithm)
   const productCountsMap: Record<string, { name: string; count: number }> = {};

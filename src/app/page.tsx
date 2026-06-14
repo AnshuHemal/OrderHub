@@ -280,7 +280,7 @@ export default function Home() {
     setTimeout(() => { setIsConsoleOpen(false); router.push("/terminal"); }, 900);
   };
 
-  const closedSessions = sessionsList.filter(s => s.status === "closed");
+  const closedSessions = sessionsList.filter(s => s.status === "closed" || s.status === "CLOSED");
   const lastSession    = closedSessions[closedSessions.length - 1] ?? null;
 
   // ── Filtered simulator items ─────────────────────────────────────────────────
@@ -1178,7 +1178,18 @@ export default function Home() {
                       className="flex w-full items-center justify-center gap-2 rounded-lg bg-primary py-2.5 text-sm font-bold text-white shadow-sm hover:opacity-95 active:scale-[0.98] transition-all cursor-pointer">
                       Resume Terminal
                     </button>
-                    <button onClick={() => { closeSession(); setDrawerSuccess("Session closed successfully!"); }}
+                    <button onClick={async () => {
+                      const amountStr = prompt("Enter counted cash in drawer (₹):", "1000");
+                      if (amountStr !== null) {
+                        const amt = parseFloat(amountStr) || 0;
+                        try {
+                          await closeSession(amt);
+                          setDrawerSuccess("Session closed successfully!");
+                        } catch (err: any) {
+                          setDrawerError(err.message || "Failed to close session");
+                        }
+                      }
+                    }}
                       className="w-full rounded-lg border border-border bg-card py-2.5 text-sm font-bold text-stone-750 hover:bg-muted transition-all cursor-pointer">
                       Close Cash Register
                     </button>
@@ -1206,7 +1217,7 @@ export default function Home() {
                     <p className="font-bold text-muted-foreground uppercase tracking-wider text-[10px]">Last Closed Session</p>
                     <p className="text-xs text-stone-500 font-semibold">{new Date(lastSession.closedAt || "").toLocaleString()}</p>
                     <div className="h-px bg-border my-1" />
-                    <p className="font-bold text-foreground text-base">Closing Balance: ₹{lastSession.closingBalance.toFixed(2)}</p>
+                    <p className="font-bold text-foreground text-base">Closing Balance: ₹{(lastSession.closingFloat ?? lastSession.openingBalance).toFixed(2)}</p>
                   </div>
                 )}
 

@@ -9,9 +9,10 @@ import { useToast } from "@/components/ui/toast";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import {
   ClipboardList, CheckCircle2, XCircle, Clock, Pencil,
-  Trash2, Eye, Receipt, Send, Printer, MapPin, Package
+  Trash2, Eye, Receipt, Send, Printer, MapPin, Package, RefreshCcw
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import RefundDialog from "@/components/shared/RefundDialog";
 
 // ─── Status config ────────────────────────────────────────────────────────────
 
@@ -38,6 +39,9 @@ function OrdersLogContent() {
   const [receiptOrder, setReceiptOrder] = useState<Order | null>(null);
   const [receiptEmailInput, setReceiptEmailInput] = useState("");
   const [emailSentStatus, setEmailSentStatus] = useState(false);
+  const [refundingOrder, setRefundingOrder] = useState<Order | null>(null);
+
+  const isManager = currentUser?.role === "admin" || currentUser?.role === "OWNER" || currentUser?.role === "MANAGER";
 
   if (!activeSession || !currentUser) return null;
 
@@ -124,11 +128,24 @@ function OrdersLogContent() {
                 filteredOrders.map((order) => {
                   const table = tables.find((t) => t.id === order.tableId);
                   const itemCount = order.items.reduce((s, i) => s + i.quantity, 0);
-                  const status = STATUS_CONFIG[order.status as keyof typeof STATUS_CONFIG] ?? STATUS_CONFIG.draft;
+                  
+                  const isVoided = !!order.voidedAt;
+                  const hasRefunds = order.refunds && order.refunds.length > 0;
+                  
+                  let status: { label: string; icon: React.ComponentType<any>; cls: string } = STATUS_CONFIG[order.status as keyof typeof STATUS_CONFIG] ?? STATUS_CONFIG.draft;
+                  if (isVoided) {
+                    status = { label: "Voided", icon: XCircle, cls: "bg-red-500/10 text-red-500" };
+                  } else if (hasRefunds) {
+                    status = { label: "Refunded", icon: RefreshCcw, cls: "bg-amber-500/10 text-amber-600 dark:text-amber-400" };
+                  }
+                  
                   const StatusIcon = status.icon;
 
                   return (
-                    <tr key={order.id} className="hover:bg-stone-50/60 dark:hover:bg-stone-900/40 transition-colors">
+                    <tr key={order.id} className={cn(
+                      "hover:bg-stone-50/60 dark:hover:bg-stone-900/40 transition-colors",
+                      isVoided && "opacity-60"
+                    )}>
                       <td className="px-6 py-4 font-mono font-bold text-stone-800 dark:text-stone-200 text-sm">
                         {order.orderNumber}
                       </td>
@@ -188,12 +205,22 @@ function OrdersLogContent() {
                           )}
 
                           {order.status === "paid" && (
-                            <button
-                              onClick={() => openReceipt(order)}
-                              className="flex items-center gap-1.5 px-3 py-1.5 border border-stone-200 dark:border-stone-800 hover:bg-stone-100 dark:hover:bg-stone-800 text-stone-600 dark:text-stone-300 rounded-xl font-bold text-xs transition-colors"
-                            >
-                              <Receipt className="size-3" /> Receipt
-                            </button>
+                            <>
+                              <button
+                                onClick={() => openReceipt(order)}
+                                className="flex items-center gap-1.5 px-3 py-1.5 border border-stone-200 dark:border-stone-800 hover:bg-stone-100 dark:hover:bg-stone-800 text-stone-600 dark:text-stone-300 rounded-xl font-bold text-xs transition-colors"
+                              >
+                                <Receipt className="size-3" /> Receipt
+                              </button>
+                              {isManager && !order.voidedAt && (
+                                <button
+                                  onClick={() => setRefundingOrder(order)}
+                                  className="flex items-center gap-1.5 px-3 py-1.5 border border-amber-200 dark:border-amber-900/40 hover:bg-amber-50 dark:hover:bg-amber-950/20 text-amber-600 dark:text-amber-400 rounded-xl font-bold text-xs transition-colors"
+                                >
+                                  <RefreshCcw className="size-3" /> Refund / Void
+                                </button>
+                              )}
+                            </>
                           )}
                         </div>
                       </td>
@@ -219,15 +246,30 @@ function OrdersLogContent() {
           <div className="space-y-4">
             <div className="bg-stone-50 dark:bg-stone-950 p-4 rounded-2xl border border-stone-100 dark:border-stone-800 space-y-2">
               <p className="text-xs font-bold uppercase text-stone-400 mb-3">Cart Items</p>
-              {viewingOrder.items.map((it) => (
-                <div key={it.id} className="flex justify-between items-center text-sm">
-                  <div className="flex-1 pr-4">
-                    <p className="font-bold text-stone-800 dark:text-stone-200">{it.name}</p>
-                    <p className="text-xs text-stone-400">₹{it.unitPrice.toFixed(2)} × {it.quantity}</p>
+              {viewingOrder.items.map((it) => {
+                const mods = it.selectedModifiers as any[];
+                return (
+                  <div key={it.id} className="flex justify-between items-center text-sm">
+                    <div className="flex-1 pr-4">
+                      <p className="font-bold text-stone-800 dark:text-stone-200">
+                        {it.name}
+                        {mods && mods.length > 0 && (
+                          <span className="text-[10px] text-primary dark:text-primary/70 font-semibold block mt-0.5">
+                            + {mods.map((m: any) => m.name).join(", ")}
+                          </span>
+                        )}
+                        {it.notes && (
+                          <span className="text-[10px] text-stone-400 block mt-0.5 italic">
+                            &ldquo;{it.notes}&rdquo;
+                          </span>
+                        )}
+                      </p>
+                      <p className="text-xs text-stone-450 mt-1">₹{it.unitPrice.toFixed(2)} × {it.quantity}</p>
+                    </div>
+                    <span className="font-mono font-bold text-stone-700 dark:text-stone-300">₹{it.total.toFixed(2)}</span>
                   </div>
-                  <span className="font-mono font-bold text-stone-700 dark:text-stone-300">₹{it.total.toFixed(2)}</span>
-                </div>
-              ))}
+                );
+              })}
             </div>
             <div className="space-y-1.5 text-sm px-1">
               <div className="flex justify-between text-stone-500"><span>Subtotal</span><span>₹{viewingOrder.subtotal.toFixed(2)}</span></div>
@@ -235,12 +277,47 @@ function OrdersLogContent() {
               {viewingOrder.discounts > 0 && (
                 <div className="flex justify-between text-red-500 font-semibold"><span>Discounts</span><span>-₹{viewingOrder.discounts.toFixed(2)}</span></div>
               )}
+              {viewingOrder.voidedAt && (
+                <div className="flex justify-between text-red-500 font-black">
+                  <span>VOIDED/REFUNDED</span>
+                  <span>-₹{viewingOrder.total.toFixed(2)}</span>
+                </div>
+              )}
               <div className="h-px bg-stone-200 dark:bg-stone-800 my-2" />
               <div className="flex justify-between font-black text-base">
                 <span className="text-stone-800 dark:text-stone-100">Order Total</span>
-                <span className="text-primary">₹{viewingOrder.total.toFixed(2)}</span>
+                <span className={cn("text-primary", viewingOrder.voidedAt && "line-through text-stone-400")}>
+                  ₹{viewingOrder.total.toFixed(2)}
+                </span>
               </div>
             </div>
+
+            {/* Refund history list */}
+            {viewingOrder.refunds && viewingOrder.refunds.length > 0 && (
+              <div className="bg-stone-50 dark:bg-stone-950 p-4 rounded-2xl border border-stone-200 dark:border-stone-800 space-y-2">
+                <p className="text-xs font-bold uppercase text-stone-400 mb-2">Refund & Adjustment History</p>
+                <div className="space-y-2 max-h-40 overflow-y-auto pr-1">
+                  {viewingOrder.refunds.map((ref: any, idx: number) => (
+                    <div key={ref.id || idx} className="text-xs border-b border-stone-100 dark:border-stone-850 pb-2 last:border-0 last:pb-0">
+                      <div className="flex justify-between font-bold">
+                        <span className="text-stone-700 dark:text-stone-300">
+                          {ref.reason} ({ref.refundMethod})
+                        </span>
+                        <span className="text-red-500 font-mono">-₹{ref.amount.toFixed(2)}</span>
+                      </div>
+                      <p className="text-[10px] text-stone-450 mt-0.5">
+                        Issued on {new Date(ref.createdAt).toLocaleString()}
+                      </p>
+                      {ref.notes && (
+                        <p className="text-[10px] text-stone-400 mt-1 italic">
+                          &ldquo;{ref.notes}&rdquo;
+                        </p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
             <button
               onClick={() => setViewingOrder(null)}
               className="w-full py-2.5 bg-stone-900 hover:bg-stone-800 dark:bg-stone-800 dark:hover:bg-stone-700 text-white font-bold rounded-xl shadow transition-colors"
@@ -281,13 +358,17 @@ function OrdersLogContent() {
               <div className="grid grid-cols-12 font-bold">
                 <span className="col-span-6">Item</span><span className="col-span-2 text-center">Qty</span><span className="col-span-4 text-right">Price</span>
               </div>
-              {receiptOrder.items.map((item) => (
-                <div key={item.id} className="grid grid-cols-12">
-                  <span className="col-span-6 truncate">{item.name}</span>
-                  <span className="col-span-2 text-center">{item.quantity}</span>
-                  <span className="col-span-4 text-right">₹{item.total.toFixed(2)}</span>
-                </div>
-              ))}
+              {receiptOrder.items.map((item) => {
+                const mods = item.selectedModifiers as any[];
+                const modsText = mods && mods.length > 0 ? ` [${mods.map((m: any) => m.name).join(", ")}]` : "";
+                return (
+                  <div key={item.id} className="grid grid-cols-12">
+                    <span className="col-span-6 truncate" title={`${item.name}${modsText}`}>{item.name}{modsText}</span>
+                    <span className="col-span-2 text-center">{item.quantity}</span>
+                    <span className="col-span-4 text-right">₹{item.total.toFixed(2)}</span>
+                  </div>
+                );
+              })}
               <div className="border-t border-dashed border-stone-300 dark:border-stone-700" />
               <div className="text-right space-y-0.5">
                 <p>Subtotal: ₹{receiptOrder.subtotal.toFixed(2)}</p>
@@ -310,7 +391,16 @@ function OrdersLogContent() {
                   cashierName: currentUser.name,
                   guestName: receiptOrder.customerId ? (customers.find((c) => c.id === receiptOrder.customerId)?.name ?? "Guest") : "Walk-in",
                   tableNumber: receiptOrder.tableId ? (tables.find((t) => t.id === receiptOrder.tableId)?.tableNumber ?? "—") : "Takeaway",
-                  items: receiptOrder.items.map((it) => ({ name: it.name, quantity: it.quantity, total: it.total })),
+                  items: receiptOrder.items.map((it) => {
+                    const modsList = it.selectedModifiers && (it.selectedModifiers as any).length > 0
+                      ? ` [${(it.selectedModifiers as any).map((m: any) => m.name).join(", ")}]`
+                      : "";
+                    return {
+                      name: `${it.name}${modsList}`,
+                      quantity: it.quantity,
+                      total: it.total
+                    };
+                  }),
                   subtotal: receiptOrder.subtotal, tax: receiptOrder.tax, discounts: receiptOrder.discounts, total: receiptOrder.total,
                   paymentMethod: paymentMethods.find((p) => p.id === receiptOrder.paymentMethodId)?.name ?? "Cash",
                   paymentReference: receiptOrder.paymentReference ?? undefined,
@@ -333,6 +423,14 @@ function OrdersLogContent() {
             </form>
           </div>
         </DialogModal>
+      )}
+
+      {refundingOrder && (
+        <RefundDialog
+          isOpen={!!refundingOrder}
+          onClose={() => setRefundingOrder(null)}
+          order={refundingOrder}
+        />
       )}
     </section>
   );

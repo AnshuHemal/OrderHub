@@ -8,6 +8,7 @@ import { downloadReceiptPDF } from "@/lib/receipt-pdf";
 import { DialogModal } from "@/components/ui/dialog-modal";
 import { useToast } from "@/components/ui/toast";
 import { motion, AnimatePresence } from "motion/react";
+import { ModifierDialog } from "@/components/shared/ModifierDialog";
 import {
   ShoppingCart, LayoutGrid, Minus, Plus, X, Tag, ChefHat,
   CreditCard, Banknote, Smartphone, UserPlus, UserCheck,
@@ -32,6 +33,10 @@ function OrderCheckoutContent() {
 
   const productSearch = searchParams.get("search") || "";
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
+
+  // ── Modifiers ─────────────────────────────────────────────────────────────
+  const [selectedModifierProduct, setSelectedModifierProduct] = useState<Product | null>(null);
+  const [isModifierOpen, setIsModifierOpen] = useState(false);
 
   // ── Modal states ──────────────────────────────────────────────────────────
   const [showDiscountModal, setShowDiscountModal] = useState(false);
@@ -95,41 +100,6 @@ function OrderCheckoutContent() {
   const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   const PHONE_RE = /^[+\d][\d\s\-().]{6,19}$/;
 
-  // ── Empty state ───────────────────────────────────────────────────────────
-  if (!currentOrder) {
-    return (
-      <div className="flex-1 flex flex-col items-center justify-center p-6 text-center gap-5">
-        <div className="w-20 h-20 rounded-3xl bg-stone-100 dark:bg-stone-800 flex items-center justify-center">
-          <ShoppingCart className="size-9 text-stone-400" />
-        </div>
-        <div>
-          <p className="text-lg font-extrabold text-stone-700 dark:text-stone-300">No active order</p>
-          <p className="text-sm text-stone-400 mt-1 max-w-xs leading-relaxed">
-            Select a table from the Floor Plan or start a counter takeaway order.
-          </p>
-        </div>
-        <button
-          onClick={() => router.push("/terminal/tables")}
-          className="flex items-center gap-2 px-6 py-2.5 bg-primary text-white font-bold rounded-xl shadow hover:bg-primary-hover transition-all active:scale-95"
-        >
-          <LayoutGrid className="size-4" />
-          Go to Floor Plan
-        </button>
-      </div>
-    );
-  }
-
-  // ── Filters ───────────────────────────────────────────────────────────────
-  const filteredProducts = products.filter((p) => {
-    const matchesSearch = p.name.toLowerCase().includes(productSearch.toLowerCase());
-    const matchesCategory = selectedCategoryId === null || p.categoryId === selectedCategoryId;
-    return p.isActive && matchesSearch && matchesCategory;
-  });
-
-  const linkedCustomer = currentOrder.customerId
-    ? customers.find((c) => c.id === currentOrder.customerId)
-    : null;
-
   // Expand cart items so that quantity > 1 items are listed individually
   const expandedItems = React.useMemo(() => {
     if (!currentOrder) return [];
@@ -173,6 +143,41 @@ function OrderCheckoutContent() {
     }
     return 0;
   }, [splitMode, currentOrder, splitGuests, expandedItems, itemSelectedIds, customAmountInput]);
+
+  // ── Empty state ───────────────────────────────────────────────────────────
+  if (!currentOrder) {
+    return (
+      <div className="flex-1 flex flex-col items-center justify-center p-6 text-center gap-5">
+        <div className="w-20 h-20 rounded-3xl bg-stone-100 dark:bg-stone-800 flex items-center justify-center">
+          <ShoppingCart className="size-9 text-stone-400" />
+        </div>
+        <div>
+          <p className="text-lg font-extrabold text-stone-700 dark:text-stone-300">No active order</p>
+          <p className="text-sm text-stone-400 mt-1 max-w-xs leading-relaxed">
+            Select a table from the Floor Plan or start a counter takeaway order.
+          </p>
+        </div>
+        <button
+          onClick={() => router.push("/terminal/tables")}
+          className="flex items-center gap-2 px-6 py-2.5 bg-primary text-white font-bold rounded-xl shadow hover:bg-primary-hover transition-all active:scale-95"
+        >
+          <LayoutGrid className="size-4" />
+          Go to Floor Plan
+        </button>
+      </div>
+    );
+  }
+
+  // ── Filters ───────────────────────────────────────────────────────────────
+  const filteredProducts = products.filter((p) => {
+    const matchesSearch = p.name.toLowerCase().includes(productSearch.toLowerCase());
+    const matchesCategory = selectedCategoryId === null || p.categoryId === selectedCategoryId;
+    return p.isActive && matchesSearch && matchesCategory;
+  });
+
+  const linkedCustomer = currentOrder.customerId
+    ? customers.find((c) => c.id === currentOrder.customerId)
+    : null;
 
   const toggleItemSelection = (id: string) => {
     if (itemSelectedIds.includes(id)) {
@@ -540,7 +545,14 @@ function OrderCheckoutContent() {
                   whileHover={{ y: -2, scale: 1.02 }}
                   whileTap={{ scale: 0.96 }}
                   transition={{ type: "spring", stiffness: 400, damping: 25 }}
-                  onClick={() => addToCart(prod, 1)}
+                  onClick={() => {
+                    if (prod.modifierGroups && prod.modifierGroups.length > 0) {
+                      setSelectedModifierProduct(prod);
+                      setIsModifierOpen(true);
+                    } else {
+                      addToCart(prod, 1);
+                    }
+                  }}
                   className="group relative flex flex-col text-left bg-white dark:bg-stone-900 rounded-2xl border border-stone-200 dark:border-stone-800 hover:border-primary/40 hover:shadow-md overflow-hidden shadow-sm transition-all"
                 >
                   {/* Category colour bar */}
@@ -674,6 +686,16 @@ function OrderCheckoutContent() {
                 >
                   <div className="flex-1 min-w-0">
                     <h5 className="text-xs font-bold text-stone-800 dark:text-stone-200 truncate">{item.name}</h5>
+                    {item.selectedModifiers && item.selectedModifiers.length > 0 && (
+                      <p className="text-[10px] text-primary dark:text-primary/70 font-semibold mt-0.5 max-w-[200px] truncate">
+                        {item.selectedModifiers.map(m => m.name).join(", ")}
+                      </p>
+                    )}
+                    {item.notes && (
+                      <p className="text-[10px] text-stone-450 italic mt-0.5 max-w-[200px] truncate">
+                        &ldquo;{item.notes}&rdquo;
+                      </p>
+                    )}
                     <p className="text-[10px] text-stone-400 mt-0.5">₹{item.unitPrice.toFixed(2)} · Tax {item.taxPercentage}%</p>
                   </div>
 
@@ -687,7 +709,7 @@ function OrderCheckoutContent() {
                     </button>
                     <span className="text-xs font-black text-stone-800 dark:text-white w-5 text-center">{item.quantity}</span>
                     <button
-                      onClick={() => addToCart(products.find((p) => p.id === item.productId)!, 1)}
+                      onClick={() => addToCart(products.find((p) => p.id === item.productId)!, 1, item.selectedModifiers, item.notes)}
                       className="w-7 h-7 flex items-center justify-center text-stone-600 dark:text-stone-300 hover:text-stone-900 dark:hover:text-white transition-colors"
                     >
                       <Plus className="size-3.5" />
@@ -1348,7 +1370,16 @@ function OrderCheckoutContent() {
                     cashierName: currentUser?.name ?? "Cashier",
                     guestName: receiptOrder.customerId ? (customers.find((c) => c.id === receiptOrder.customerId)?.name ?? "Guest") : "Walk-in",
                     tableNumber: receiptOrder.tableId ? (tables.find((t) => t.id === receiptOrder.tableId)?.tableNumber ?? "—") : "Takeaway",
-                    items: receiptOrder.items.map((it) => ({ name: it.name, quantity: it.quantity, total: it.total })),
+                    items: receiptOrder.items.map((it) => {
+                      const modsList = it.selectedModifiers && (it.selectedModifiers as any).length > 0
+                        ? ` [${(it.selectedModifiers as any).map((m: any) => m.name).join(", ")}]`
+                        : "";
+                      return {
+                        name: `${it.name}${modsList}`,
+                        quantity: it.quantity,
+                        total: it.total
+                      };
+                    }),
                     subtotal: receiptOrder.subtotal, tax: receiptOrder.tax, discounts: receiptOrder.discounts, total: receiptOrder.total,
                     paymentMethod: paymentMethods.find((p) => p.id === receiptOrder.paymentMethodId)?.name ?? "Cash",
                     paymentReference: receiptOrder.paymentReference ?? undefined,
@@ -1369,6 +1400,17 @@ function OrderCheckoutContent() {
           </div>
         </DialogModal>
       )}
+
+      <ModifierDialog
+        isOpen={isModifierOpen}
+        onClose={() => setIsModifierOpen(false)}
+        product={selectedModifierProduct}
+        onConfirm={(options, notes) => {
+          if (selectedModifierProduct) {
+            addToCart(selectedModifierProduct, 1, options, notes);
+          }
+        }}
+      />
     </section>
   );
 }

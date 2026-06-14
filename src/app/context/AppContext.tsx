@@ -10,7 +10,7 @@ import { useToast } from "@/components/ui/toast";
 // ==========================================
 
 export type UserRole = "admin" | "employee" | "OWNER" | "MANAGER" | "STAFF" | "KITCHEN";
-export type SessionStatus = "open" | "closed";
+export type SessionStatus = "open" | "closed" | "OPEN" | "CLOSED";
 export type OrderStatus = "draft" | "paid" | "cancelled" | "PENDING" | "CONFIRMED" | "PREPARING" | "READY" | "SERVED" | "PAID" | "CANCELLED";
 export type KitchenStage = "to_cook" | "preparing" | "completed" | "PENDING" | "PREPARING" | "READY" | "SERVED" | "served";
 export type DiscountType = "percentage" | "fixed";
@@ -34,6 +34,22 @@ export interface Category {
   preparationStation?: string;
 }
 
+export interface ModifierOption {
+  id: string;
+  modifierGroupId: string;
+  name: string;
+  priceAdjustment: number;
+}
+
+export interface ModifierGroup {
+  id: string;
+  menuItemId: string;
+  name: string;
+  minSelection: number;
+  maxSelection: number;
+  options: ModifierOption[];
+}
+
 export interface Product {
   id: string;
   name: string;
@@ -43,6 +59,7 @@ export interface Product {
   taxPercentage: number;
   description: string;
   isActive: boolean;
+  modifierGroups?: ModifierGroup[];
 }
 
 export interface PaymentMethod {
@@ -95,13 +112,17 @@ export interface Promotion {
 }
 
 export interface PosSession {
-  id: number;
+  id: string;
   openedBy: string;
   openedAt: string;
   closedAt: string | null;
   openingBalance: number;
-  closingBalance: number;
+  closingFloat: number | null;
+  countedCash: number | null;
+  discrepancy: number | null;
   status: SessionStatus;
+  zReportData: any | null;
+  user?: { id: string; name: string; email: string };
 }
 
 export interface OrderItem {
@@ -116,11 +137,14 @@ export interface OrderItem {
   total: number;
   status: KitchenStage;
   completedAt?: string;
+  selectedModifiers?: any[];
+  notes?: string;
+  refundedQuantity?: number;
 }
 
 export interface Order {
   id: string;
-  sessionId: number;
+  sessionId: string | null;
   tableId: string | null;
   customerId: string | null;
   employeeId: string;
@@ -139,6 +163,10 @@ export interface Order {
   createdAt: string;
   completedAt?: string;
   notes?: string;
+  voidedAt?: string | null;
+  voidReason?: string | null;
+  voidedByUserId?: string | null;
+  refunds?: any[];
 }
 
 export interface Booking {
@@ -183,8 +211,10 @@ interface AppContextType {
   login: (email: string, pass: string) => Promise<boolean>;
   signup: (name: string, email: string, pass: string) => Promise<boolean>;
   logout: () => void;
-  openSession: (amount: number) => void;
-  closeSession: () => void;
+  openSession: (amount: number) => Promise<void>;
+  closeSession: (countedCash: number) => Promise<any>;
+  fetchActiveSession: () => Promise<void>;
+  fetchSessions: () => Promise<void>;
   
   // Data Tables
   users: User[];
@@ -206,6 +236,7 @@ interface AppContextType {
   deleteUser: (id: string) => void;
 
   // Product & Category Actions
+  fetchMenu: () => Promise<void>;
   createProduct: (prod: Omit<Product, "id" | "isActive">) => void;
   updateProduct: (id: string, prod: Partial<Product>) => void;
   deleteProduct: (id: string) => void;
@@ -244,7 +275,7 @@ interface AppContextType {
   currentOrder: Order | null;
   setCurrentOrder: (order: Order | null) => void;
   loadTableOrder: (tableId: string) => void;
-  addToCart: (product: Product, quantity?: number) => void;
+  addToCart: (product: Product, quantity?: number, selectedModifiers?: any[], notes?: string) => void;
   updateCartQty: (productId: string, qty: number) => void;
   applyManualCoupon: (code: string) => { success: boolean; message: string };
   removeCoupon: () => void;
@@ -255,6 +286,8 @@ interface AppContextType {
   sendEmailReceipt: (orderId: string, email: string) => Promise<any>;
   editDraftOrder: (id: string) => void;
   createNewOrder: (tableId: string | null) => void;
+  voidOrder: (id: string, reason: string, notes: string, refundMethod: string) => Promise<void>;
+  refundOrder: (id: string, reason: string, notes: string, refundMethod: string, items: { orderItemId: string; quantity: number }[]) => Promise<void>;
 
   // KDS transitions
   updateKdsStage: (orderId: string, stage: KitchenStage, stationName?: string) => void;
@@ -349,7 +382,7 @@ const SEED_BOOKINGS: Booking[] = [
 // ==========================================
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { warning: toastWarning } = useToast();
+  const { success, error: toastError, warning: toastWarning } = useToast();
 
   // Authentication & Session
   const [currentUser, setCurrentUser] = useState<User | null>(null);
@@ -395,15 +428,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setCoupons([]);
       setPromotions([]);
       setBookings([]);
-      setSessionsList(getOrSeed<PosSession[]>("sessions_list", []));
-
-      const sess = localStorage.getItem("odoopos_active_session");
-      if (sess) {
-        try {
-          setActiveSession(JSON.parse(sess));
-        } catch {}
-      }
-
       // Initial Auth Sync from Backend Cookie
       const initAuth = async () => {
         try {
@@ -417,6 +441,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               role: profile.role,
               isArchived: false
             });
+            // Fetch active session and sessions list
+            const active = await api.get<any>('/pos-sessions/active').catch(() => null);
+            setActiveSession(active || null);
+            const isAdmin = profile.role === 'admin' || profile.role === 'OWNER' || profile.role === 'MANAGER';
+            if (isAdmin) {
+              const hist = await api.get<any[]>('/pos-sessions').catch(() => []);
+              setSessionsList(hist);
+            }
           } else {
             setCurrentUser(null);
           }
@@ -439,7 +471,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Sync local-only variables to localStorage
   useEffect(() => { if (paymentMethods.length > 0) saveState("payment_methods", paymentMethods); }, [paymentMethods]);
-  useEffect(() => { saveState("sessions_list", sessionsList); }, [sessionsList]);
+  // Sync local-only variables to localStorage
+  useEffect(() => { if (paymentMethods.length > 0) saveState("payment_methods", paymentMethods); }, [paymentMethods]);
 
   // Sync state in real-time across tabs/windows on storage change
   useEffect(() => {
@@ -453,15 +486,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     window.addEventListener("storage", handleStorage);
     return () => window.removeEventListener("storage", handleStorage);
   }, []);
-
-  // Active Session local sync
-  useEffect(() => {
-    if (activeSession) {
-      localStorage.setItem("odoopos_active_session", JSON.stringify(activeSession));
-    } else {
-      localStorage.removeItem("odoopos_active_session");
-    }
-  }, [activeSession]);
 
   // Fetching helpers for backend resources
   const fetchFloorsAndTables = async () => {
@@ -511,53 +535,63 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         unitOfMeasure: "per piece",
         taxPercentage: 5.00,
         description: item.description || "",
-        isActive: item.isAvailable
+        isActive: item.isAvailable,
+        modifierGroups: item.modifierGroups || []
       })));
     } catch (err) {
       console.error("fetchMenu error:", err);
     }
   };
 
+  const mapBackendOrderToFrontend = (o: any): Order => ({
+    id: o.id,
+    sessionId: o.posSessionId || null,
+    tableId: o.tableId,
+    customerId: o.customerId || o.customer?.id || null,
+    employeeId: o.staffId,
+    orderNumber: `ORD-${o.id.substring(0, 8).toUpperCase()}`,
+    subtotal: o.subtotal,
+    tax: o.tax,
+    discounts: o.discount,
+    appliedPromoId: null,
+    appliedPromoName: null,
+    appliedCouponCode: null,
+    total: o.total,
+    status: o.status === 'PAID' ? 'paid' : o.status === 'CANCELLED' ? 'cancelled' : 'draft',
+    paymentMethodId: o.payment ? (o.payment.method === 'CASH' ? 1 : o.payment.method === 'CARD' ? 2 : 3) : null,
+    paymentReference: o.payment ? o.payment.reference : null,
+    voidedAt: o.voidedAt,
+    voidReason: o.voidReason,
+    voidedByUserId: o.voidedByUserId,
+    refunds: o.refunds || [],
+    items: (o.items || []).map((it: any) => {
+      const unitPrice = Number(it.unitPrice ?? it.price ?? 0);
+      const quantity  = Number(it.quantity ?? 1);
+      const taxAmt    = unitPrice * quantity * 0.05;
+      return {
+        id: it.id,
+        productId: it.menuItemId,
+        name: it.menuItem ? it.menuItem.name : "Item",
+        quantity,
+        unitPrice,
+        taxPercentage: 5.00,
+        taxAmount:    Number(taxAmt.toFixed(2)),
+        discountAmount: 0,
+        total:        Number((unitPrice * quantity * 1.05).toFixed(2)),
+        status: it.status === 'PENDING' ? 'to_cook' : it.status === 'PREPARING' ? 'preparing' : it.status === 'READY' ? 'completed' : 'served',
+        completedAt: it.status === 'READY' || it.status === 'SERVED' ? new Date().toISOString() : undefined,
+        selectedModifiers: it.selectedModifiers || [],
+        refundedQuantity: it.refundedQuantity || 0
+      };
+    }),
+    createdAt: o.createdAt,
+    completedAt: o.completedAt || undefined
+  });
+
   const fetchOrders = async () => {
     try {
       const ordersData = await api.get<any[]>('/orders');
-      const mappedOrders: Order[] = ordersData.map(o => ({
-        id: o.id,
-        sessionId: activeSession ? activeSession.id : 0,
-        tableId: o.tableId,
-        customerId: null,
-        employeeId: o.staffId,
-        orderNumber: `ORD-${o.id.substring(0, 8).toUpperCase()}`,
-        subtotal: o.subtotal,
-        tax: o.tax,
-        discounts: o.discount,
-        appliedPromoId: null,
-        appliedPromoName: null,
-        appliedCouponCode: null,
-        total: o.total,
-        status: o.status === 'PAID' ? 'paid' : o.status === 'CANCELLED' ? 'cancelled' : 'draft',
-        paymentMethodId: o.payment ? (o.payment.method === 'CASH' ? 1 : o.payment.method === 'CARD' ? 2 : 3) : null,
-        paymentReference: o.payment ? o.payment.reference : null,
-        items: (o.items || []).map((it: any) => {
-          const unitPrice = Number(it.unitPrice ?? it.price ?? 0);
-          const quantity  = Number(it.quantity ?? 1);
-          const taxAmt    = unitPrice * quantity * 0.05;
-          return {
-            id: it.id,
-            productId: it.menuItemId,
-            name: it.menuItem ? it.menuItem.name : "Item",
-            quantity,
-            unitPrice,
-            taxPercentage: 5.00,
-            taxAmount:    Number(taxAmt.toFixed(2)),
-            discountAmount: 0,
-            total:        Number((unitPrice * quantity * 1.05).toFixed(2)),
-            status: it.status === 'PENDING' ? 'to_cook' : it.status === 'PREPARING' ? 'preparing' : it.status === 'READY' ? 'completed' : 'served',
-            completedAt: it.status === 'READY' || it.status === 'SERVED' ? new Date().toISOString() : undefined
-          };
-        }),
-        createdAt: o.createdAt
-      }));
+      const mappedOrders: Order[] = ordersData.map(mapBackendOrderToFrontend);
       setOrders(mappedOrders);
     } catch (err) {
       console.error("fetchOrders error:", err);
@@ -683,7 +717,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         fetchBookings(),
         fetchIngredients(),
         fetchRecipes(),
-        ...(isAdmin ? [fetchUsers()] : [])
+        fetchActiveSession(),
+        ...(isAdmin ? [fetchUsers(), fetchSessions()] : [])
       ]);
     };
     loadAllData();
@@ -938,41 +973,47 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // Session Functions
   // ==========================================
 
-  const openSession = (amount: number) => {
+  const fetchActiveSession = async () => {
     if (!currentUser) return;
-    const newSession: PosSession = {
-      id: sessionsList.length > 0 ? Math.max(...sessionsList.map(s => s.id)) + 1 : 1,
-      openedBy: currentUser.id,
-      openedAt: new Date().toISOString(),
-      closedAt: null,
-      openingBalance: amount,
-      closingBalance: 0,
-      status: "open"
-    };
-
-    setActiveSession(newSession);
-    setSessionsList(prev => [...prev, newSession]);
+    try {
+      const active = await api.get<any>('/pos-sessions/active');
+      setActiveSession(active || null);
+    } catch (err) {
+      console.error("fetchActiveSession error:", err);
+    }
   };
 
-  const closeSession = () => {
-    if (!activeSession) return;
+  const fetchSessions = async () => {
+    try {
+      const hist = await api.get<any[]>('/pos-sessions');
+      setSessionsList(hist);
+    } catch (err) {
+      console.error("fetchSessions error:", err);
+    }
+  };
 
-    // Calculate closing sales total
-    const currentSessionOrders = orders.filter(
-      o => o.sessionId === activeSession.id && o.status === "paid"
-    );
-    const totalSales = currentSessionOrders.reduce((sum, o) => sum + o.total, 0);
-    const closingAmount = activeSession.openingBalance + totalSales;
+  const openSession = async (amount: number) => {
+    try {
+      const data = await api.post<any>('/pos-sessions/open', { openingBalance: amount });
+      setActiveSession(data);
+      await fetchSessions();
+    } catch (err) {
+      console.error("openSession error:", err);
+      throw err;
+    }
+  };
 
-    const updatedSession: PosSession = {
-      ...activeSession,
-      closedAt: new Date().toISOString(),
-      closingBalance: closingAmount,
-      status: "closed"
-    };
-
-    setActiveSession(null);
-    setSessionsList(prev => prev.map(s => s.id === updatedSession.id ? updatedSession : s));
+  const closeSession = async (countedCash: number) => {
+    if (!activeSession) return null;
+    try {
+      const data = await api.post<any>(`/pos-sessions/${activeSession.id}/close`, { countedCash });
+      setActiveSession(null);
+      await fetchSessions();
+      return data;
+    } catch (err) {
+      console.error("closeSession error:", err);
+      throw err;
+    }
   };  // ==========================================
   // User/Employee Actions
   // ==========================================
@@ -992,7 +1033,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const updateUserPassword = async (id: string, pass: string) => {
-    console.warn("Password update not supported on backend for user:", id);
+    try {
+      await api.patch(`/users/${id}/password`, { password: pass });
+      success("Password Changed", "Employee credentials updated successfully.");
+      await fetchUsers();
+    } catch (err: any) {
+      console.error("updateUserPassword error:", err);
+      toastError("Update Failed", err.message || "Could not change the user's password.");
+    }
   };
 
   const toggleArchiveUser = async (id: string) => {
@@ -1363,30 +1411,44 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
-  const addToCart = (product: Product, quantity = 1) => {
+  const addToCart = (product: Product, quantity = 1, selectedModifiers?: any[], notes?: string) => {
     if (!currentOrder) return;
 
-    const existingItemIdx = currentOrder.items.findIndex(it => it.productId === product.id);
+    const getModifiersKey = (mods?: any[]) => {
+      if (!mods || mods.length === 0) return "";
+      return [...mods].map(m => m.id).sort().join(",");
+    };
+
+    const targetKey = getModifiersKey(selectedModifiers);
+
+    const existingItemIdx = currentOrder.items.findIndex(it => {
+      return it.productId === product.id && getModifiersKey(it.selectedModifiers) === targetKey;
+    });
+
     let updatedItems = [...currentOrder.items];
 
     if (existingItemIdx > -1) {
       const exist = updatedItems[existingItemIdx];
       updatedItems[existingItemIdx] = {
         ...exist,
-        quantity: exist.quantity + quantity
+        quantity: exist.quantity + quantity,
+        notes: notes || exist.notes
       };
     } else {
+      const modsPrice = selectedModifiers?.reduce((sum, m) => sum + (m.priceAdjustment || 0), 0) || 0;
       const newItem: OrderItem = {
         id: `item_${Date.now()}_${product.id}`,
         productId: product.id,
         name: product.name,
         quantity: quantity,
-        unitPrice: product.price,
+        unitPrice: product.price + modsPrice,
         taxPercentage: product.taxPercentage,
         taxAmount: 0,
         discountAmount: 0,
         total: 0,
-        status: "to_cook"
+        status: "to_cook",
+        selectedModifiers: selectedModifiers || [],
+        notes: notes || ""
       };
       updatedItems.push(newItem);
     }
@@ -1452,7 +1514,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setOrders(prev => prev.map(o => o.id === updatedOrder.id ? updatedOrder : o));
   };
 
-  const linkCustomerToOrder = (customerId: string | null) => {
+  const linkCustomerToOrder = async (customerId: string | null) => {
     if (!currentOrder) return;
     const updatedOrder = {
       ...currentOrder,
@@ -1460,6 +1522,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
     setCurrentOrder(updatedOrder);
     setOrders(prev => prev.map(o => o.id === updatedOrder.id ? updatedOrder : o));
+
+    if (!currentOrder.id.startsWith('temp_')) {
+      try {
+        await api.patch(`/orders/${currentOrder.id}/customer`, { customerId });
+      } catch (err) {
+        console.error("linkCustomerToOrder error persisting to backend:", err);
+      }
+    }
   };
 
   const sendOrderToKitchen = async () => {
@@ -1470,11 +1540,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (isNewOrder) {
         await api.post<any>('/orders', {
           tableId: currentOrder.tableId,
+          customerId: currentOrder.customerId,
           type: currentOrder.tableId ? 'DINE_IN' : 'TAKEAWAY',
           notes: currentOrder.notes || "",
           items: currentOrder.items.map(it => ({
             menuItemId: it.productId,
-            quantity: it.quantity
+            quantity: it.quantity,
+            notes: it.notes || "",
+            selectedModifiers: it.selectedModifiers
           }))
         });
         
@@ -1488,14 +1561,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           await api.post(`/orders/${currentOrder.id}/items`, {
             items: newItems.map(it => ({
               menuItemId: it.productId,
-              quantity: it.quantity
+              quantity: it.quantity,
+              notes: it.notes || "",
+              selectedModifiers: it.selectedModifiers
             }))
           });
         }
         await fetchOrders();
         const reloaded = await api.get<any>(`/orders/${currentOrder.id}`);
         if (reloaded) {
-          setCurrentOrder(reloaded);
+          setCurrentOrder(mapBackendOrderToFrontend(reloaded));
         }
       }
     } catch (err) {
@@ -1513,11 +1588,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (isNewOrder) {
         const created = await api.post<any>('/orders', {
           tableId: currentOrder.tableId,
+          customerId: currentOrder.customerId,
           type: currentOrder.tableId ? 'DINE_IN' : 'TAKEAWAY',
           notes: currentOrder.notes || "",
           items: currentOrder.items.map(it => ({
             menuItemId: it.productId,
-            quantity: it.quantity
+            quantity: it.quantity,
+            notes: it.notes || "",
+            selectedModifiers: it.selectedModifiers
           }))
         });
         orderId = created.id;
@@ -1562,6 +1640,27 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return await api.post(`/orders/${orderId}/email-receipt`, { email });
     } catch (err) {
       console.error("sendEmailReceipt error:", err);
+      throw err;
+    }
+  };
+
+  const voidOrder = async (id: string, reason: string, notes: string, refundMethod: string) => {
+    try {
+      await api.post(`/orders/${id}/void`, { reason, notes, refundMethod });
+      await fetchOrders();
+      await fetchFloorsAndTables();
+    } catch (err) {
+      console.error("voidOrder error:", err);
+      throw err;
+    }
+  };
+
+  const refundOrder = async (id: string, reason: string, notes: string, refundMethod: string, items: { orderItemId: string; quantity: number }[]) => {
+    try {
+      await api.post(`/orders/${id}/refund`, { reason, notes, refundMethod, items });
+      await fetchOrders();
+    } catch (err) {
+      console.error("refundOrder error:", err);
       throw err;
     }
   };
@@ -1799,6 +1898,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         logout,
         openSession,
         closeSession,
+        fetchActiveSession,
+        fetchSessions,
         socketConnected,
         users,
         categories,
@@ -1821,6 +1922,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         createCategory,
         updateCategory,
         deleteCategory,
+        fetchMenu,
         createFloor,
         createTable,
         toggleTableStatus,
@@ -1852,6 +1954,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         sendEmailReceipt,
         editDraftOrder,
         createNewOrder,
+        voidOrder,
+        refundOrder,
         updateKdsStage,
         toggleKdsItemComplete,
         resetAllData,

@@ -12,6 +12,7 @@ import {
 import { cn } from "@/lib/utils";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { Logo } from "@/components/shared/logo";
+import ZReportDialog from "@/components/shared/ZReportDialog";
 
 // ─── Nav config ──────────────────────────────────────────────────────────────
 
@@ -30,16 +31,17 @@ export default function TerminalLayout({ children }: { children: React.ReactNode
   const confirm  = useConfirm();
   const {
     currentUser, activeSession, currentOrder,
-    tables, closeSession, loading,
+    tables, loading,
   } = useApp();
 
   const [menuOpen, setMenuOpen] = useState(false);
+  const [zReportOpen, setZReportOpen] = useState(false);
 
   // Security redirect
   useEffect(() => {
     if (loading) return;
-    if (!currentUser || !activeSession) router.push("/");
-  }, [currentUser, activeSession, loading, router]);
+    if (!currentUser || (!activeSession && !zReportOpen)) router.push("/");
+  }, [currentUser, activeSession, loading, router, zReportOpen]);
 
   // Close menu on route change
   useEffect(() => { setMenuOpen(false); }, [pathname]);
@@ -231,15 +233,9 @@ export default function TerminalLayout({ children }: { children: React.ReactNode
                     {/* Close Session */}
                     <div className="py-1.5">
                       <button
-                        onClick={async () => {
-                          const ok = await confirm({
-                            title: "Close Shift Session",
-                            message: "Are you sure you want to close this POS shift session? You will be returned to the session summary.",
-                            confirmLabel: "Close Session",
-                            cancelLabel: "Keep Working",
-                            variant: "warning",
-                          });
-                          if (ok) { closeSession(); router.push("/"); }
+                        onClick={() => {
+                          setMenuOpen(false);
+                          setZReportOpen(true);
                         }}
                         className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-bold text-red-500 hover:bg-red-500/5 transition-colors"
                       >
@@ -289,6 +285,9 @@ export default function TerminalLayout({ children }: { children: React.ReactNode
           );
         })}
       </footer>
+
+      {/* Z-Report Dialog */}
+      <ZReportDialog isOpen={zReportOpen} onClose={() => setZReportOpen(false)} />
     </div>
   );
 }

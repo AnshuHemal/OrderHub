@@ -5,6 +5,7 @@ import { useApp, Product } from "@/app/context/AppContext";
 import { DialogModal } from "@/components/ui/dialog-modal";
 import { Package, Plus, Pencil, Trash2, Tag } from "lucide-react";
 import { useConfirm } from "@/components/ui/confirm-dialog";
+import ItemModifiersTab from "./_components/ItemModifiersTab";
 
 export default function ProductsPage() {
   const {
@@ -20,6 +21,7 @@ export default function ProductsPage() {
   // Modal & editing state
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingProductId, setEditingProductId] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<"general" | "modifiers">("general");
 
   // Form fields
   const [prodName, setProdName] = useState("");
@@ -43,6 +45,7 @@ export default function ProductsPage() {
 
   const openNewModal = () => {
     setEditingProductId(null);
+    setActiveTab("general");
     setProdName(""); setProdPrice(""); setProdDesc("");
     setProdUom("per piece"); setProdTax("5.00");
     setShowInlineCatForm(false); setInlineCatName("");
@@ -51,6 +54,7 @@ export default function ProductsPage() {
 
   const openEditModal = (prod: Product) => {
     setEditingProductId(prod.id);
+    setActiveTab("general");
     setProdName(prod.name);
     setProdCatId(prod.categoryId ? prod.categoryId : "");
     setProdPrice(String(prod.price));
@@ -64,6 +68,7 @@ export default function ProductsPage() {
   const closeModal = () => {
     setIsModalOpen(false);
     setEditingProductId(null);
+    setActiveTab("general");
   };
 
   const handleProductSubmit = (e: React.FormEvent) => {
@@ -211,153 +216,184 @@ export default function ProductsPage() {
         isOpen={isModalOpen}
         onClose={closeModal}
         title={editingProductId ? "Edit Product Details" : "Register New Product"}
-        description={editingProductId ? "Update the product's name, pricing, and category." : "Add a new item to your POS menu catalog."}
+        description={editingProductId ? "Update the product's name, pricing, category, and customization options." : "Add a new item to your POS menu catalog."}
         icon={<Package className="size-5" />}
-        size="lg"
+        size={editingProductId ? "xl" : "lg"}
       >
-        <form onSubmit={handleProductSubmit} className="space-y-5">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {/* Name */}
-            <div>
-              <label className={labelCls}>Product Name <span className="text-red-500">*</span></label>
-              <input
-                type="text"
-                value={prodName}
-                onChange={(e) => setProdName(e.target.value)}
-                placeholder="e.g. Mocha Latte"
-                className={inputCls}
-                required
-              />
-            </div>
-
-            {/* Price */}
-            <div>
-              <label className={labelCls}>Unit Price (₹) <span className="text-red-500">*</span></label>
-              <input
-                type="number"
-                step="0.01"
-                min="0"
-                value={prodPrice}
-                onChange={(e) => setProdPrice(e.target.value)}
-                placeholder="e.g. 4.50"
-                className={inputCls}
-                required
-              />
-            </div>
-
-            {/* Category */}
-            <div className="col-span-1 sm:col-span-2">
-              <div className="flex justify-between items-center mb-1.5">
-                <label className={labelCls + " mb-0"}>Category Assignment</label>
-                <button
-                  type="button"
-                  onClick={() => setShowInlineCatForm(!showInlineCatForm)}
-                  className="text-xs text-primary font-bold hover:underline flex items-center gap-1"
-                >
-                  <Tag className="size-3" />
-                  {showInlineCatForm ? "Cancel" : "+ Create category inline"}
-                </button>
-              </div>
-
-              {!showInlineCatForm ? (
-                <select
-                  value={prodCatId}
-                  onChange={(e) => setProdCatId(e.target.value)}
-                  className={inputCls}
-                >
-                  <option value="">No Category</option>
-                  {categories.map((c) => (
-                    <option key={c.id} value={c.id}>{c.name}</option>
-                  ))}
-                </select>
-              ) : (
-                <div className="p-4 bg-stone-50 dark:bg-stone-950 border border-stone-200 dark:border-stone-800 rounded-2xl space-y-3">
-                  <p className="font-bold text-xs text-stone-500 uppercase tracking-wider">
-                    Quick-create Category
-                  </p>
-                  <div className="grid grid-cols-3 gap-3">
-                    <div className="col-span-2">
-                      <input
-                        type="text"
-                        value={inlineCatName}
-                        onChange={(e) => setInlineCatName(e.target.value)}
-                        placeholder="Category name"
-                        className={inputCls}
-                      />
-                    </div>
-                    <div>
-                      <input
-                        type="color"
-                        value={inlineCatColor}
-                        onChange={(e) => setInlineCatColor(e.target.value)}
-                        className="w-full h-[44px] p-1.5 bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 rounded-xl cursor-pointer"
-                      />
-                    </div>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={handleInlineCatCreate}
-                    className="px-4 py-2 bg-primary text-white text-xs font-bold rounded-xl hover:bg-primary-hover transition-colors"
-                  >
-                    Add & Select
-                  </button>
-                </div>
-              )}
-            </div>
-
-            {/* UoM */}
-            <div>
-              <label className={labelCls}>Unit of Measure</label>
-              <select value={prodUom} onChange={(e) => setProdUom(e.target.value)} className={inputCls}>
-                <option value="per piece">Per Piece</option>
-                <option value="per kg">Per KG</option>
-                <option value="per litre">Per Litre</option>
-              </select>
-            </div>
-
-            {/* Tax */}
-            <div>
-              <label className={labelCls}>Tax Percentage (%)</label>
-              <input
-                type="number"
-                step="0.01"
-                min="0"
-                value={prodTax}
-                onChange={(e) => setProdTax(e.target.value)}
-                className={inputCls}
-              />
-            </div>
-
-            {/* Description */}
-            <div className="col-span-1 sm:col-span-2">
-              <label className={labelCls}>Description</label>
-              <textarea
-                value={prodDesc}
-                onChange={(e) => setProdDesc(e.target.value)}
-                rows={3}
-                placeholder="Product description for receipts and menus..."
-                className={inputCls + " resize-none"}
-              />
-            </div>
-          </div>
-
-          {/* Actions */}
-          <div className="flex justify-end gap-3 pt-2 border-t border-stone-100 dark:border-stone-800">
+        {editingProductId && (
+          <div className="flex border-b border-stone-200 dark:border-stone-800 mb-5">
             <button
               type="button"
-              onClick={closeModal}
-              className="px-5 py-2.5 border border-stone-200 dark:border-stone-800 text-stone-600 dark:text-stone-400 font-bold rounded-xl hover:bg-stone-50 dark:hover:bg-stone-800 transition-colors"
+              onClick={() => setActiveTab("general")}
+              className={`px-4 py-2.5 font-bold text-sm border-b-2 transition-all ${
+                activeTab === "general"
+                  ? "border-primary text-primary"
+                  : "border-transparent text-stone-500 hover:text-stone-700 dark:hover:text-stone-300"
+              }`}
             >
-              Cancel
+              General Details
             </button>
             <button
-              type="submit"
-              className="px-5 py-2.5 bg-primary hover:bg-primary-hover text-white font-bold rounded-xl shadow transition-all active:scale-95"
+              type="button"
+              onClick={() => setActiveTab("modifiers")}
+              className={`px-4 py-2.5 font-bold text-sm border-b-2 transition-all ${
+                activeTab === "modifiers"
+                  ? "border-primary text-primary"
+                  : "border-transparent text-stone-500 hover:text-stone-700 dark:hover:text-stone-300"
+              }`}
             >
-              {editingProductId ? "Update Product" : "Register Product"}
+              Modifiers & Add-ons
             </button>
           </div>
-        </form>
+        )}
+
+        {(!editingProductId || activeTab === "general") ? (
+          <form onSubmit={handleProductSubmit} className="space-y-5">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {/* Name */}
+              <div>
+                <label className={labelCls}>Product Name <span className="text-red-500">*</span></label>
+                <input
+                  type="text"
+                  value={prodName}
+                  onChange={(e) => setProdName(e.target.value)}
+                  placeholder="e.g. Mocha Latte"
+                  className={inputCls}
+                  required
+                />
+              </div>
+
+              {/* Price */}
+              <div>
+                <label className={labelCls}>Unit Price (₹) <span className="text-red-500">*</span></label>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={prodPrice}
+                  onChange={(e) => setProdPrice(e.target.value)}
+                  placeholder="e.g. 4.50"
+                  className={inputCls}
+                  required
+                />
+              </div>
+
+              {/* Category */}
+              <div className="col-span-1 sm:col-span-2">
+                <div className="flex justify-between items-center mb-1.5">
+                  <label className={labelCls + " mb-0"}>Category Assignment</label>
+                  <button
+                    type="button"
+                    onClick={() => setShowInlineCatForm(!showInlineCatForm)}
+                    className="text-xs text-primary font-bold hover:underline flex items-center gap-1"
+                  >
+                    <Tag className="size-3" />
+                    {showInlineCatForm ? "Cancel" : "+ Create category inline"}
+                  </button>
+                </div>
+
+                {!showInlineCatForm ? (
+                  <select
+                    value={prodCatId}
+                    onChange={(e) => setProdCatId(e.target.value)}
+                    className={inputCls}
+                  >
+                    <option value="">No Category</option>
+                    {categories.map((c) => (
+                      <option key={c.id} value={c.id}>{c.name}</option>
+                    ))}
+                  </select>
+                ) : (
+                  <div className="p-4 bg-stone-50 dark:bg-stone-950 border border-stone-200 dark:border-stone-800 rounded-2xl space-y-3">
+                    <p className="font-bold text-xs text-stone-500 uppercase tracking-wider">
+                      Quick-create Category
+                    </p>
+                    <div className="grid grid-cols-3 gap-3">
+                      <div className="col-span-2">
+                        <input
+                          type="text"
+                          value={inlineCatName}
+                          onChange={(e) => setInlineCatName(e.target.value)}
+                          placeholder="Category name"
+                          className={inputCls}
+                        />
+                      </div>
+                      <div>
+                        <input
+                          type="color"
+                          value={inlineCatColor}
+                          onChange={(e) => setInlineCatColor(e.target.value)}
+                          className="w-full h-[44px] p-1.5 bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 rounded-xl cursor-pointer"
+                        />
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleInlineCatCreate}
+                      className="px-4 py-2 bg-primary text-white text-xs font-bold rounded-xl hover:bg-primary-hover transition-colors"
+                    >
+                      Add & Select
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {/* UoM */}
+              <div>
+                <label className={labelCls}>Unit of Measure</label>
+                <select value={prodUom} onChange={(e) => setProdUom(e.target.value)} className={inputCls}>
+                  <option value="per piece">Per Piece</option>
+                  <option value="per kg">Per KG</option>
+                  <option value="per litre">Per Litre</option>
+                </select>
+              </div>
+
+              {/* Tax */}
+              <div>
+                <label className={labelCls}>Tax Percentage (%)</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={prodTax}
+                  onChange={(e) => setProdTax(e.target.value)}
+                  className={inputCls}
+                />
+              </div>
+
+              {/* Description */}
+              <div className="col-span-1 sm:col-span-2">
+                <label className={labelCls}>Description</label>
+                <textarea
+                  value={prodDesc}
+                  onChange={(e) => setProdDesc(e.target.value)}
+                  rows={3}
+                  placeholder="Product description for receipts and menus..."
+                  className={inputCls + " resize-none"}
+                />
+              </div>
+            </div>
+
+            {/* Actions */}
+            <div className="flex justify-end gap-3 pt-2 border-t border-stone-100 dark:border-stone-800">
+              <button
+                type="button"
+                onClick={closeModal}
+                className="px-5 py-2.5 border border-stone-200 dark:border-stone-800 text-stone-600 dark:text-stone-400 font-bold rounded-xl hover:bg-stone-50 dark:hover:bg-stone-800 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className="px-5 py-2.5 bg-primary hover:bg-primary-hover text-white font-bold rounded-xl shadow transition-all active:scale-95"
+              >
+                {editingProductId ? "Update Product" : "Register Product"}
+              </button>
+            </div>
+          </form>
+        ) : (
+          <ItemModifiersTab productId={editingProductId} />
+        )}
       </DialogModal>
     </div>
   );

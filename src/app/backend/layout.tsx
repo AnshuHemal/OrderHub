@@ -25,7 +25,8 @@ import {
   ShieldAlert,
   ArrowLeft,
   FlaskConical,
-  ChefHat
+  ChefHat,
+  FileText
 } from "lucide-react";
 
 function getInitials(name: string) {
@@ -90,6 +91,7 @@ export default function BackendLayout({ children }: { children: React.ReactNode 
     { href: "/backend/users", label: "Employee Registry", icon: Users },
     { href: "/backend/bookings", label: "Bookings Log", icon: Calendar },
     { href: "/backend/customers", label: "Guest Registry", icon: Contact },
+    { href: "/backend/shift-reports", label: "Shift Reports (Z-EOD)", icon: FileText },
   ];
 
   const inventoryItems = [

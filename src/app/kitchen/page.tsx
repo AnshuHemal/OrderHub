@@ -212,12 +212,28 @@ function TicketCard({
               )}>
                 <CheckCircle2 className="size-3 stroke-[3]" />
               </div>
-              <span className={cn(
-                "text-xs font-semibold tracking-tight transition-all duration-200",
-                (item.status === "completed" || item.status === "served") ? "line-through opacity-50 font-normal" : "font-bold"
-              )}>
-                <span className="text-primary font-black mr-1">{item.quantity}x</span> {item.name}
-              </span>
+              <div className="flex flex-col">
+                <span className={cn(
+                  "text-xs font-semibold tracking-tight transition-all duration-200",
+                  (item.status === "completed" || item.status === "served") ? "line-through opacity-50 font-normal" : "font-bold"
+                )}>
+                  <span className="text-primary font-black mr-1">{item.quantity}x</span> {item.name}
+                </span>
+                
+                {/* Modifiers List */}
+                {item.selectedModifiers && (item.selectedModifiers as any).length > 0 && (
+                  <span className="text-[10px] text-amber-600 dark:text-amber-500 font-extrabold mt-0.5 leading-snug">
+                    + {(item.selectedModifiers as any).map((m: any) => m.name).join(", ")}
+                  </span>
+                )}
+                
+                {/* Line Item Notes */}
+                {item.notes && (
+                  <span className="text-[10px] text-stone-400 dark:text-stone-500 italic mt-0.5">
+                    &ldquo;{item.notes}&rdquo;
+                  </span>
+                )}
+              </div>
             </div>
             <span className="opacity-0 group-hover:opacity-100 text-[9px] text-stone-400 dark:text-stone-500 font-extrabold transition-opacity uppercase tracking-wider shrink-0 pl-1">
               {(item.status === "completed" || item.status === "served") ? "Re-open" : "Done"}
