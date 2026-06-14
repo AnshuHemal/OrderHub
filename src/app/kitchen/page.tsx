@@ -24,7 +24,8 @@ import {
   Play,
   ShoppingBag,
   Inbox,
-  GripVertical
+  GripVertical,
+  Printer
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -118,6 +119,7 @@ function TicketCard({
   isDragging,
   isOverlay
 }: TicketCardProps) {
+  const { printOrder } = useApp();
   const cfg = getStageStyles(stage);
 
   return (
@@ -163,17 +165,28 @@ function TicketCard({
           </div>
         </div>
 
-        <span className={cn(
-          "text-[10px] font-bold px-2 py-0.5 rounded-lg flex items-center gap-1 shrink-0 select-none",
-          elapsedMins > 15
-            ? "bg-rose-500/15 text-rose-600 dark:text-rose-455 border border-rose-500/25 animate-pulse font-extrabold"
-            : elapsedMins > 8
-            ? "bg-amber-500/15 text-amber-600 dark:text-amber-455 border border-amber-500/25"
-            : "bg-stone-105 dark:bg-stone-955/60 text-stone-505 dark:text-stone-400 border border-stone-200/60 dark:border-stone-800"
-        )}>
-          <Clock className="size-3" />
-          {getElapsedTimeLabel(ticket.createdAt)}
-        </span>
+        <div className="flex items-center gap-1.5 shrink-0 select-none">
+          <button
+            onPointerDown={(e) => e.stopPropagation()}
+            onMouseDown={(e) => e.stopPropagation()}
+            onClick={() => printOrder(ticket, true)}
+            title="Print Kitchen Ticket"
+            className="p-1.5 text-stone-500 hover:text-stone-850 dark:hover:text-stone-200 hover:bg-stone-100 dark:hover:bg-stone-800 rounded-lg transition-colors border border-stone-200 dark:border-stone-800"
+          >
+            <Printer className="size-3.5" />
+          </button>
+          <span className={cn(
+            "text-[10px] font-bold px-2 py-0.5 rounded-lg flex items-center gap-1 select-none",
+            elapsedMins > 15
+              ? "bg-rose-500/15 text-rose-600 dark:text-rose-455 border border-rose-500/25 animate-pulse font-extrabold"
+              : elapsedMins > 8
+              ? "bg-amber-500/15 text-amber-600 dark:text-amber-455 border border-amber-500/25"
+              : "bg-stone-105 dark:bg-stone-955/60 text-stone-505 dark:text-stone-400 border border-stone-200/60 dark:border-stone-800"
+          )}>
+            <Clock className="size-3" />
+            {getElapsedTimeLabel(ticket.createdAt)}
+          </span>
+        </div>
       </div>
 
       {/* Decorative divider */}

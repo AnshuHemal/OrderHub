@@ -4,6 +4,8 @@ import React, { createContext, useContext, useState, useEffect, useCallback } fr
 import { api } from "@/lib/api";
 import { getSocket } from "@/lib/socket";
 import { useToast } from "@/components/ui/toast";
+import { printReceiptHtml } from "@/lib/print-html";
+import { printToUsbSerial, compileReceiptEscPos, compileKitchenEscPos } from "@/lib/escpos";
 
 // ==========================================
 // TypeScript Interfaces
@@ -149,6 +151,8 @@ export interface Order {
   customerId: string | null;
   employeeId: string;
   orderNumber: string;
+  type?: string;
+  kitchenStatus?: string;
   subtotal: number;
   tax: number;
   discounts: number;
@@ -195,6 +199,21 @@ export interface RecipeIngredient {
   ingredientId: string;
   quantityRequired: number;
   ingredient: { id: string; name: string; unit: string };
+}
+
+export interface PrinterConfig {
+  type: "browser" | "usb" | "network";
+  paperWidth: "80mm" | "58mm";
+  ipAddress: string;
+  port: number;
+  autoPrint: boolean;
+  usbVendorId?: string;
+  usbProductId?: string;
+}
+
+export interface PrinterSettings {
+  receiptPrinter: PrinterConfig;
+  kitchenPrinter: PrinterConfig;
 }
 
 // ==========================================
@@ -308,6 +327,12 @@ interface AppContextType {
   fetchRecipes: () => Promise<void>;
   fetchRecipeForMenuItem: (menuItemId: string) => Promise<RecipeIngredient[]>;
   updateRecipe: (menuItemId: string, ingredients: { ingredientId: string; quantityRequired: number }[]) => Promise<void>;
+
+  // Printer Actions & State
+  printerSettings: PrinterSettings;
+  updatePrinterSettings: (settings: PrinterSettings) => Promise<void>;
+  printOrder: (order: Order, isKitchenTicket: boolean) => Promise<void>;
+  fetchPrinterSettings: () => Promise<void>;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -404,6 +429,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [ingredients, setIngredients] = useState<Ingredient[]>([]);
   const [recipes, setRecipes] = useState<RecipeIngredient[]>([]);
+  const [printerSettings, setPrinterSettings] = useState<PrinterSettings>({
+    receiptPrinter: { type: "browser", paperWidth: "80mm", ipAddress: "", port: 9100, autoPrint: false },
+    kitchenPrinter: { type: "browser", paperWidth: "80mm", ipAddress: "", port: 9100, autoPrint: false },
+  });
 
   // POS Order view cart helper
   const [currentOrder, setCurrentOrder] = useState<Order | null>(null);
@@ -550,6 +579,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     customerId: o.customerId || o.customer?.id || null,
     employeeId: o.staffId,
     orderNumber: `ORD-${o.id.substring(0, 8).toUpperCase()}`,
+    type: o.type || "DINE_IN",
+    kitchenStatus: o.status,
     subtotal: o.subtotal,
     tax: o.tax,
     discounts: o.discount,
@@ -718,6 +749,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         fetchIngredients(),
         fetchRecipes(),
         fetchActiveSession(),
+        fetchPrinterSettings(),
         ...(isAdmin ? [fetchUsers(), fetchSessions()] : [])
       ]);
     };
@@ -1851,6 +1883,69 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
+  const fetchPrinterSettings = async () => {
+    try {
+      const data = await api.get<PrinterSettings>('/settings/printer');
+      if (data) {
+        setPrinterSettings(data);
+      }
+    } catch (err) {
+      console.error("fetchPrinterSettings error:", err);
+    }
+  };
+
+  const updatePrinterSettings = async (settings: PrinterSettings) => {
+    const backup = { ...printerSettings };
+    setPrinterSettings(settings);
+    try {
+      await api.patch('/settings/printer', settings);
+      success("Success", "Printer settings updated");
+    } catch (err) {
+      console.error("updatePrinterSettings error:", err);
+      setPrinterSettings(backup);
+      toastError("Error", "Failed to update printer settings");
+    }
+  };
+
+  const printOrder = async (order: Order, isKitchenTicket: boolean) => {
+    const config = isKitchenTicket ? printerSettings.kitchenPrinter : printerSettings.receiptPrinter;
+    if (config.type === "browser") {
+      printReceiptHtml(order, config.paperWidth, isKitchenTicket, tables, customers, users);
+    } else if (config.type === "usb") {
+      try {
+        const base64 = isKitchenTicket
+          ? compileKitchenEscPos(order, config.paperWidth, tables)
+          : compileReceiptEscPos(order, config.paperWidth, tables, customers, users);
+        const res = await printToUsbSerial(base64, config.usbVendorId, config.usbProductId);
+        if (!res.success) {
+          toastError("USB Print Error", res.error || "Failed to print to USB device");
+        } else {
+          success("Printed", "Print job sent to USB printer");
+        }
+      } catch (err: any) {
+        toastError("Print Error", err.message || "Failed to print to USB printer");
+      }
+    } else if (config.type === "network") {
+      try {
+        const base64 = isKitchenTicket
+          ? compileKitchenEscPos(order, config.paperWidth, tables)
+          : compileReceiptEscPos(order, config.paperWidth, tables, customers, users);
+        const res = await api.post<any>('/settings/printer/print-network', {
+          ip: config.ipAddress,
+          port: Number(config.port) || 9100,
+          base64Data: base64
+        });
+        if (res && res.error) {
+          toastError("Network Print Error", res.error);
+        } else {
+          success("Printed", "Print job sent to network printer");
+        }
+      } catch (err: any) {
+        toastError("Print Error", err.message || "Failed to print to network printer");
+      }
+    }
+  };
+
   const resetAllData = () => {
     if (typeof window !== "undefined") {
       localStorage.removeItem("odoopos_users");
@@ -1967,7 +2062,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         recipes,
         fetchRecipes,
         fetchRecipeForMenuItem,
-        updateRecipe
+        updateRecipe,
+        printerSettings,
+        updatePrinterSettings,
+        printOrder,
+        fetchPrinterSettings
       }}
     >
       {children}

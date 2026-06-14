@@ -13,7 +13,7 @@ import {
   ShoppingCart, LayoutGrid, Minus, Plus, X, Tag, ChefHat,
   CreditCard, Banknote, Smartphone, UserPlus, UserCheck,
   Receipt, Send, Printer, TriangleAlert, CheckCircle2,
-  Check, Users, Scissors
+  Check, Users, Scissors, FileText
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -29,6 +29,7 @@ function OrderCheckoutContent() {
     linkCustomerToOrder, addToCart, updateCartQty,
     applyManualCoupon, removeCoupon, sendOrderToKitchen,
     processOrderPayment, createCustomer, sendEmailReceipt,
+    printOrder, printerSettings,
   } = useApp();
 
   const productSearch = searchParams.get("search") || "";
@@ -84,6 +85,13 @@ function OrderCheckoutContent() {
   const [receiptOrder, setReceiptOrder] = useState<Order | null>(null);
   const [receiptEmailInput, setReceiptEmailInput] = useState("");
   const [emailSentStatus, setEmailSentStatus] = useState(false);
+
+  // Auto-print receipt on checkout success
+  useEffect(() => {
+    if (showReceiptModal && receiptOrder && printerSettings.receiptPrinter.autoPrint) {
+      printOrder(receiptOrder, false);
+    }
+  }, [showReceiptModal, receiptOrder, printerSettings.receiptPrinter.autoPrint, printOrder]);
 
   const [showCustomerModal, setShowCustomerModal] = useState(false);
   const [customerName, setCustomerName] = useState("");
@@ -212,6 +220,9 @@ function OrderCheckoutContent() {
     if (currentOrder.items.length === 0) return;
     sendOrderToKitchen();
     success("Sent to Kitchen", `Order ${currentOrder.orderNumber} is now on the kitchen display.`);
+    if (printerSettings.kitchenPrinter.autoPrint) {
+      printOrder(currentOrder, true);
+    }
   };
 
   const handleCheckoutSubmit = (e: React.FormEvent) => {
@@ -1364,6 +1375,17 @@ function OrderCheckoutContent() {
               <button
                 type="button"
                 onClick={() => {
+                  if (receiptOrder) {
+                    printOrder(receiptOrder, false);
+                  }
+                }}
+                className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-stone-900 text-white dark:bg-stone-100 dark:text-stone-900 rounded-xl font-bold hover:bg-stone-800 dark:hover:bg-stone-200 transition-colors"
+              >
+                <Printer className="size-4" /> Print Receipt
+              </button>
+              <button
+                type="button"
+                onClick={() => {
                   if (!receiptOrder) return;
                   downloadReceiptPDF({
                     orderNumber: receiptOrder.orderNumber, createdAt: receiptOrder.createdAt,
@@ -1387,12 +1409,12 @@ function OrderCheckoutContent() {
                 }}
                 className="flex-1 flex items-center justify-center gap-2 py-2.5 border border-stone-200 dark:border-stone-800 text-stone-600 dark:text-stone-300 rounded-xl font-bold hover:bg-stone-50 dark:hover:bg-stone-800 transition-colors"
               >
-                <Printer className="size-4" /> Print PDF
+                <FileText className="size-4" /> Print PDF
               </button>
               <button
                 type="button"
                 onClick={() => setShowReceiptModal(false)}
-                className="flex-1 py-2.5 bg-primary hover:bg-primary-hover text-white font-bold rounded-xl shadow transition-all active:scale-95"
+                className="flex-1 py-2.5 bg-primary hover:bg-primary-hover text-white font-bold rounded-xl shadow transition-all active:scale-95 animate-pulse"
               >
                 Close Receipt
               </button>

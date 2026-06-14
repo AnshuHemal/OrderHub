@@ -9,7 +9,8 @@ import { useToast } from "@/components/ui/toast";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import {
   ClipboardList, CheckCircle2, XCircle, Clock, Pencil,
-  Trash2, Eye, Receipt, Send, Printer, MapPin, Package, RefreshCcw
+  Trash2, Eye, Receipt, Send, Printer, MapPin, Package, RefreshCcw, FileText,
+  Flame, Utensils
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import RefundDialog from "@/components/shared/RefundDialog";
@@ -23,6 +24,16 @@ const STATUS_CONFIG = {
   sent:      { label: "Sent",      icon: CheckCircle2, cls: "bg-blue-500/10   text-blue-500"                          },
 } as const;
 
+const KITCHEN_STATUS_CONFIG = {
+  PENDING:   { label: "Pending",   icon: Clock,        cls: "bg-blue-500/10 text-blue-500 border border-blue-500/20" },
+  CONFIRMED: { label: "Confirmed", icon: Clock,        cls: "bg-blue-500/10 text-blue-550 border border-blue-500/20" },
+  PREPARING: { label: "Preparing", icon: Flame,        cls: "bg-amber-500/10 text-amber-600 dark:text-amber-450 border border-amber-500/20 animate-pulse font-extrabold" },
+  READY:     { label: "Ready",     icon: CheckCircle2, cls: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 font-black" },
+  SERVED:    { label: "Served",    icon: Utensils,     cls: "bg-violet-500/10 text-violet-600 dark:text-violet-400 border border-violet-500/20" },
+  PAID:      { label: "Paid",      icon: CheckCircle2, cls: "bg-green-500/10 text-green-600 dark:text-green-400 border border-green-500/20" },
+  CANCELLED: { label: "Cancelled", icon: XCircle,      cls: "bg-red-500/10 text-red-500 border border-red-500/20" },
+};
+
 // ─── Inner content ────────────────────────────────────────────────────────────
 
 function OrdersLogContent() {
@@ -31,6 +42,7 @@ function OrdersLogContent() {
   const {
     currentUser, orders, activeSession, customers, tables,
     paymentMethods, cancelDraftOrder, editDraftOrder, sendEmailReceipt,
+    printOrder
   } = useApp();
 
   const orderSearch = searchParams.get("search") || "";
@@ -40,6 +52,7 @@ function OrdersLogContent() {
   const [receiptEmailInput, setReceiptEmailInput] = useState("");
   const [emailSentStatus, setEmailSentStatus] = useState(false);
   const [refundingOrder, setRefundingOrder] = useState<Order | null>(null);
+  const [statusTab, setStatusTab] = useState<"all" | "pending" | "preparing" | "ready" | "paid" | "cancelled">("all");
 
   const isManager = currentUser?.role === "admin" || currentUser?.role === "OWNER" || currentUser?.role === "MANAGER";
 
@@ -50,6 +63,17 @@ function OrdersLogContent() {
 
   const filteredOrders = orders.filter((o) => {
     if (o.sessionId !== activeSession.id) return false;
+
+    // Filter by status tab
+    const kStatus = o.kitchenStatus || (o.status === "paid" ? "PAID" : o.status === "cancelled" ? "CANCELLED" : "PENDING");
+    if (statusTab !== "all") {
+      if (statusTab === "pending" && kStatus !== "PENDING" && kStatus !== "CONFIRMED") return false;
+      if (statusTab === "preparing" && kStatus !== "PREPARING") return false;
+      if (statusTab === "ready" && kStatus !== "READY" && kStatus !== "SERVED") return false;
+      if (statusTab === "paid" && (o.status !== "paid" || !!o.voidedAt)) return false;
+      if (statusTab === "cancelled" && o.status !== "cancelled" && !o.voidedAt) return false;
+    }
+
     const cust = customers.find((c) => c.id === o.customerId);
     return (
       o.orderNumber.toLowerCase().includes(orderSearch.toLowerCase()) ||
@@ -99,6 +123,39 @@ function OrdersLogContent() {
         </div>
       </div>
 
+      {/* ── Status Tabs ── */}
+      <div className="flex flex-wrap gap-1.5 rounded-2xl bg-stone-100 dark:bg-stone-800/40 p-1 md:max-w-fit">
+        {[
+          { id: "all", label: "All Orders", count: orders.filter(o => o.sessionId === activeSession.id).length },
+          { id: "pending", label: "Pending", count: orders.filter(o => o.sessionId === activeSession.id && (o.kitchenStatus === "PENDING" || o.kitchenStatus === "CONFIRMED")).length },
+          { id: "preparing", label: "Preparing", count: orders.filter(o => o.sessionId === activeSession.id && o.kitchenStatus === "PREPARING").length },
+          { id: "ready", label: "Ready / Served", count: orders.filter(o => o.sessionId === activeSession.id && (o.kitchenStatus === "READY" || o.kitchenStatus === "SERVED")).length },
+          { id: "paid", label: "Paid", count: orders.filter(o => o.sessionId === activeSession.id && o.status === "paid" && !o.voidedAt).length },
+          { id: "cancelled", label: "Cancelled / Voided", count: orders.filter(o => o.sessionId === activeSession.id && (o.status === "cancelled" || !!o.voidedAt)).length },
+        ].map((tab) => (
+          <button
+            key={tab.id}
+            onClick={() => setStatusTab(tab.id as any)}
+            className={cn(
+              "relative px-4 py-2 text-xs font-bold rounded-xl transition-all duration-200 flex items-center gap-1.5",
+              statusTab === tab.id
+                ? "bg-white text-stone-900 shadow-sm dark:bg-stone-900 dark:text-stone-100"
+                : "text-stone-500 hover:text-stone-850 dark:text-stone-400 dark:hover:text-stone-200"
+            )}
+          >
+            {tab.label}
+            <span className={cn(
+              "px-1.5 py-0.25 rounded-md text-[9px] font-extrabold",
+              statusTab === tab.id
+                ? "bg-stone-100 text-stone-700 dark:bg-stone-800 dark:text-stone-300"
+                : "bg-stone-200/60 text-stone-500 dark:bg-stone-800/80 dark:text-stone-400"
+            )}>
+              {tab.count}
+            </span>
+          </button>
+        ))}
+      </div>
+
       {/* ── Orders Table ── */}
       <div className="bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 rounded-3xl shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
@@ -132,14 +189,16 @@ function OrdersLogContent() {
                   const isVoided = !!order.voidedAt;
                   const hasRefunds = order.refunds && order.refunds.length > 0;
                   
-                  let status: { label: string; icon: React.ComponentType<any>; cls: string } = STATUS_CONFIG[order.status as keyof typeof STATUS_CONFIG] ?? STATUS_CONFIG.draft;
+                  const kStatus = order.kitchenStatus || (order.status === "paid" ? "PAID" : order.status === "cancelled" ? "CANCELLED" : "PENDING");
+                  let statusCfg = KITCHEN_STATUS_CONFIG[kStatus as keyof typeof KITCHEN_STATUS_CONFIG] || KITCHEN_STATUS_CONFIG.PENDING;
+                  
                   if (isVoided) {
-                    status = { label: "Voided", icon: XCircle, cls: "bg-red-500/10 text-red-500" };
+                    statusCfg = { label: "Voided", icon: XCircle, cls: "bg-red-500/10 text-red-500 border border-red-500/20" };
                   } else if (hasRefunds) {
-                    status = { label: "Refunded", icon: RefreshCcw, cls: "bg-amber-500/10 text-amber-600 dark:text-amber-400" };
+                    statusCfg = { label: "Refunded", icon: RefreshCcw, cls: "bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20" };
                   }
                   
-                  const StatusIcon = status.icon;
+                  const StatusIcon = statusCfg.icon;
 
                   return (
                     <tr key={order.id} className={cn(
@@ -172,10 +231,10 @@ function OrdersLogContent() {
                       <td className="px-6 py-4">
                         <span className={cn(
                           "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold uppercase tracking-wider",
-                          status.cls
+                          statusCfg.cls
                         )}>
                           <StatusIcon className="size-3" />
-                          {status.label}
+                          {statusCfg.label}
                         </span>
                       </td>
                       <td className="px-6 py-4 text-right">
@@ -383,33 +442,45 @@ function OrdersLogContent() {
             </div>
 
             {/* Print */}
-            <button
-              onClick={() => {
-                if (!receiptOrder) return;
-                downloadReceiptPDF({
-                  orderNumber: receiptOrder.orderNumber, createdAt: receiptOrder.createdAt,
-                  cashierName: currentUser.name,
-                  guestName: receiptOrder.customerId ? (customers.find((c) => c.id === receiptOrder.customerId)?.name ?? "Guest") : "Walk-in",
-                  tableNumber: receiptOrder.tableId ? (tables.find((t) => t.id === receiptOrder.tableId)?.tableNumber ?? "—") : "Takeaway",
-                  items: receiptOrder.items.map((it) => {
-                    const modsList = it.selectedModifiers && (it.selectedModifiers as any).length > 0
-                      ? ` [${(it.selectedModifiers as any).map((m: any) => m.name).join(", ")}]`
-                      : "";
-                    return {
-                      name: `${it.name}${modsList}`,
-                      quantity: it.quantity,
-                      total: it.total
-                    };
-                  }),
-                  subtotal: receiptOrder.subtotal, tax: receiptOrder.tax, discounts: receiptOrder.discounts, total: receiptOrder.total,
-                  paymentMethod: paymentMethods.find((p) => p.id === receiptOrder.paymentMethodId)?.name ?? "Cash",
-                  paymentReference: receiptOrder.paymentReference ?? undefined,
-                });
-              }}
-              className="w-full flex items-center justify-center gap-2 py-2.5 bg-stone-900 hover:bg-stone-800 dark:bg-stone-800 dark:hover:bg-stone-700 text-white font-bold rounded-xl shadow transition-colors"
-            >
-              <Printer className="size-4" /> Print / Save PDF
-            </button>
+            <div className="flex gap-3">
+              <button
+                onClick={() => {
+                  if (receiptOrder) {
+                    printOrder(receiptOrder, false);
+                  }
+                }}
+                className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-stone-900 hover:bg-stone-800 text-white font-bold rounded-xl shadow transition-colors dark:bg-stone-100 dark:text-stone-900 dark:hover:bg-stone-200"
+              >
+                <Printer className="size-4" /> Print Receipt
+              </button>
+              <button
+                onClick={() => {
+                  if (!receiptOrder) return;
+                  downloadReceiptPDF({
+                    orderNumber: receiptOrder.orderNumber, createdAt: receiptOrder.createdAt,
+                    cashierName: currentUser.name,
+                    guestName: receiptOrder.customerId ? (customers.find((c) => c.id === receiptOrder.customerId)?.name ?? "Guest") : "Walk-in",
+                    tableNumber: receiptOrder.tableId ? (tables.find((t) => t.id === receiptOrder.tableId)?.tableNumber ?? "—") : "Takeaway",
+                    items: receiptOrder.items.map((it) => {
+                      const modsList = it.selectedModifiers && (it.selectedModifiers as any).length > 0
+                        ? ` [${(it.selectedModifiers as any).map((m: any) => m.name).join(", ")}]`
+                        : "";
+                      return {
+                        name: `${it.name}${modsList}`,
+                        quantity: it.quantity,
+                        total: it.total
+                      };
+                    }),
+                    subtotal: receiptOrder.subtotal, tax: receiptOrder.tax, discounts: receiptOrder.discounts, total: receiptOrder.total,
+                    paymentMethod: paymentMethods.find((p) => p.id === receiptOrder.paymentMethodId)?.name ?? "Cash",
+                    paymentReference: receiptOrder.paymentReference ?? undefined,
+                  });
+                }}
+                className="flex-1 flex items-center justify-center gap-2 py-2.5 border border-stone-200 dark:border-stone-800 text-stone-600 dark:text-stone-300 font-bold rounded-xl hover:bg-stone-50 dark:hover:bg-stone-850 transition-colors"
+              >
+                <FileText className="size-4" /> Print PDF
+              </button>
+            </div>
 
             {/* Email */}
             <form onSubmit={handleEmailReceipt} className="space-y-2 border-t border-stone-100 dark:border-stone-800 pt-4">

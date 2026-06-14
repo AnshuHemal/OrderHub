@@ -229,7 +229,7 @@ export default function Home() {
 
   const [isConsoleOpen,   setIsConsoleOpen]   = useState(false);
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
-  const [openingBalance,  setOpeningBalance]  = useState("500.00");
+  const [openingBalance,  setOpeningBalance]  = useState("00.00");
   const [drawerError,     setDrawerError]     = useState("");
   const [drawerSuccess,   setDrawerSuccess]   = useState("");
 
@@ -1172,7 +1172,7 @@ export default function Home() {
                         <span className="size-2 animate-pulse rounded-full bg-green-500" />
                         Session Active
                       </p>
-                      <p className="mt-1 text-xs text-muted-foreground font-semibold">Opening balance: ₹{activeSession.openingBalance.toFixed(2)}</p>
+                      {/* <p className="mt-1 text-xs text-muted-foreground font-semibold">Opening balance: ₹{activeSession.openingBalance.toFixed(2)}</p> */}
                     </div>
                     <button onClick={() => { setIsConsoleOpen(false); router.push("/terminal"); }}
                       className="flex w-full items-center justify-center gap-2 rounded-lg bg-primary py-2.5 text-sm font-bold text-white shadow-sm hover:opacity-95 active:scale-[0.98] transition-all cursor-pointer">
