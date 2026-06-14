@@ -45,7 +45,7 @@ export default function TablesPage() {
   const floorTables = tables.filter((t) => t.floorId === selectedFloorId);
 
   return (
-    <section className="flex-1 p-5 lg:p-8 max-w-6xl mx-auto w-full space-y-6 animate-fade-in">
+    <section className="flex-1 p-5 lg:p-8 max-w-6xl mx-auto w-full space-y-6 animate-fade-in overflow-y-auto">
 
       {/* ── Page Header ── */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">

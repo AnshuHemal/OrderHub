@@ -102,7 +102,7 @@ function CustomersDirectoryContent() {
   const labelCls = "block text-stone-500 dark:text-stone-400 font-bold mb-1.5 text-sm";
 
   return (
-    <section className="flex-1 p-5 lg:p-8 max-w-6xl mx-auto w-full space-y-6 animate-fade-in">
+    <section className="flex-1 p-5 lg:p-8 max-w-6xl mx-auto w-full space-y-6 animate-fade-in overflow-y-auto">
 
       {/* ── Page Header ── */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-stone-200 dark:border-stone-800 pb-5">
