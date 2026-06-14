@@ -7,7 +7,7 @@ import { Contact, Plus, Pencil, Trash2, Mail, Phone } from "lucide-react";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const PHONE_RE = /^[+\d][\d\s\-().]{6,19}$/;
+const PHONE_RE = /^\d{10}$/;
 
 function validateEmail(v: string) {
   if (!v.trim()) return "Email is required.";
@@ -16,7 +16,7 @@ function validateEmail(v: string) {
 }
 function validatePhone(v: string) {
   if (!v) return "";
-  if (!PHONE_RE.test(v)) return "Enter a valid phone number (e.g. +1 555-0199).";
+  if (!PHONE_RE.test(v)) return "Phone number must be exactly 10 digits.";
   return "";
 }
 

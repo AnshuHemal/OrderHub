@@ -9,7 +9,7 @@ import { Contact, Plus, Pencil, Trash2, Mail, Phone, UserCheck } from "lucide-re
 import { cn } from "@/lib/utils";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const PHONE_RE = /^[+\d][\d\s\-().]{6,19}$/;
+const PHONE_RE = /^\d{10}$/;
 
 function CustomersDirectoryContent() {
   const router = useRouter();
@@ -58,7 +58,7 @@ function CustomersDirectoryContent() {
     e.preventDefault();
     const nErr = !custName.trim() ? "Full name is required." : "";
     const eErr = custEmail.trim() && !EMAIL_RE.test(custEmail.trim()) ? "Enter a valid email address." : "";
-    const pErr = custPhone.trim() && !PHONE_RE.test(custPhone.trim()) ? "Enter a valid phone number." : "";
+    const pErr = custPhone.trim() && !PHONE_RE.test(custPhone.trim()) ? "Phone number must be exactly 10 digits." : "";
     setNameErr(nErr); setEmailErr(eErr); setPhoneErr(pErr);
     if (nErr || eErr || pErr) return;
     setFormError("");

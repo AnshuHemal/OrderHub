@@ -106,7 +106,7 @@ function OrderCheckoutContent() {
   const [custPhoneErr, setCustPhoneErr] = useState("");
 
   const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  const PHONE_RE = /^[+\d][\d\s\-().]{6,19}$/;
+  const PHONE_RE = /^\d{10}$/;
 
   // Expand cart items so that quantity > 1 items are listed individually
   const expandedItems = React.useMemo(() => {
@@ -463,7 +463,7 @@ function OrderCheckoutContent() {
     e.preventDefault();
     const nErr = !customerName.trim() ? "Name is required." : "";
     const eErr = customerEmail.trim() && !EMAIL_RE.test(customerEmail.trim()) ? "Enter a valid email." : "";
-    const pErr = customerPhone.trim() && !PHONE_RE.test(customerPhone.trim()) ? "Enter a valid phone number." : "";
+    const pErr = customerPhone.trim() && !PHONE_RE.test(customerPhone.trim()) ? "Phone number must be exactly 10 digits." : "";
     setCustNameErr(nErr); setCustEmailErr(eErr); setCustPhoneErr(pErr);
     if (nErr || eErr || pErr) return;
     setCustomerSaving(true); setCustomerError("");
