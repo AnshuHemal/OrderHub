@@ -3,8 +3,9 @@
 import React, { useState } from "react";
 import { useApp, Customer } from "@/app/context/AppContext";
 import { DialogModal } from "@/components/ui/dialog-modal";
-import { Contact, Plus, Pencil, Trash2, Mail, Phone } from "lucide-react";
+import { Contact, Plus, Pencil, Trash2, Mail, Phone, ChevronLeft, ChevronRight } from "lucide-react";
 import { useConfirm } from "@/components/ui/confirm-dialog";
+import { cn } from "@/lib/utils";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const PHONE_RE = /^\d{10}$/;
@@ -23,6 +24,15 @@ function validatePhone(v: string) {
 export default function CustomersPage() {
   const { currentUser, customers, createCustomer, updateCustomer, deleteCustomer } = useApp();
   const confirm = useConfirm();
+
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 20;
+
+  const totalPages = Math.ceil(customers.length / itemsPerPage);
+  const paginatedCustomers = customers.slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
+  );
 
   const isAdmin =
     currentUser?.role === "admin" ||
@@ -136,7 +146,7 @@ export default function CustomersPage() {
                   </td>
                 </tr>
               ) : (
-                customers.map((cust) => (
+                paginatedCustomers.map((cust) => (
                   <tr
                     key={cust.id}
                     className="hover:bg-stone-50/50 dark:hover:bg-stone-900/40 transition-colors"
@@ -204,6 +214,62 @@ export default function CustomersPage() {
             </tbody>
           </table>
         </div>
+
+        {/* Pagination Controls */}
+        {customers.length > 20 && (
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-4 px-6 py-4 border-t border-stone-100 dark:border-stone-800 bg-stone-50/50 dark:bg-stone-900/40">
+            <span className="text-xs text-stone-500 font-medium">
+              Showing <span className="font-bold text-stone-800 dark:text-stone-200">{Math.min(customers.length, (currentPage - 1) * itemsPerPage + 1)}-{Math.min(customers.length, currentPage * itemsPerPage)}</span> of <span className="font-bold text-stone-800 dark:text-stone-200">{customers.length}</span> guests
+            </span>
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                disabled={currentPage === 1}
+                onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                className="p-2 border border-stone-200 dark:border-stone-800 rounded-xl hover:bg-stone-100 dark:hover:bg-stone-850 text-stone-600 dark:text-stone-300 disabled:opacity-40 transition-all cursor-pointer active:scale-95"
+              >
+                <ChevronLeft className="size-4" />
+              </button>
+              {Array.from({ length: totalPages }, (_, idx) => {
+                const pageNum = idx + 1;
+                if (totalPages > 5) {
+                  if (pageNum !== 1 && pageNum !== totalPages && Math.abs(pageNum - currentPage) > 1) {
+                    if (pageNum === 2 && currentPage > 3) {
+                      return <span key="ellipsis-left" className="px-2 text-stone-400">...</span>;
+                    }
+                    if (pageNum === totalPages - 1 && currentPage < totalPages - 2) {
+                      return <span key="ellipsis-right" className="px-2 text-stone-400">...</span>;
+                    }
+                    return null;
+                  }
+                }
+                return (
+                  <button
+                    key={pageNum}
+                    type="button"
+                    onClick={() => setCurrentPage(pageNum)}
+                    className={cn(
+                      "w-8 h-8 rounded-xl font-bold text-xs transition-all cursor-pointer active:scale-95",
+                      currentPage === pageNum
+                        ? "bg-primary text-white shadow-sm"
+                        : "border border-transparent text-stone-600 dark:text-stone-400 hover:bg-stone-100 dark:hover:bg-stone-800"
+                    )}
+                  >
+                    {pageNum}
+                  </button>
+                );
+              })}
+              <button
+                type="button"
+                disabled={currentPage === totalPages}
+                onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                className="p-2 border border-stone-200 dark:border-stone-800 rounded-xl hover:bg-stone-100 dark:hover:bg-stone-850 text-stone-600 dark:text-stone-300 disabled:opacity-40 transition-all cursor-pointer active:scale-95"
+              >
+                <ChevronRight className="size-4" />
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* ── Dialog Modal ── */}

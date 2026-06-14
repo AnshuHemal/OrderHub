@@ -3,9 +3,10 @@
 import React, { useState, useEffect } from "react";
 import { useApp, Product } from "@/app/context/AppContext";
 import { DialogModal } from "@/components/ui/dialog-modal";
-import { Package, Plus, Pencil, Trash2, Tag } from "lucide-react";
+import { Package, Plus, Pencil, Trash2, Tag, ChevronLeft, ChevronRight } from "lucide-react";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import ItemModifiersTab from "./_components/ItemModifiersTab";
+import { cn } from "@/lib/utils";
 
 export default function ProductsPage() {
   const {
@@ -17,6 +18,21 @@ export default function ProductsPage() {
     createCategory,
   } = useApp();
   const confirm = useConfirm();
+
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 20;
+
+  const totalPages = Math.ceil(products.length / itemsPerPage);
+  const paginatedProducts = products.slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
+  );
+
+  useEffect(() => {
+    if (currentPage > totalPages && totalPages > 0) {
+      setCurrentPage(totalPages);
+    }
+  }, [products.length, totalPages, currentPage]);
 
   // Modal & editing state
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -130,7 +146,7 @@ export default function ProductsPage() {
 
       {/* ── Product List Grid ── */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-        {products.map((prod) => {
+        {paginatedProducts.map((prod) => {
           const cat = categories.find((c) => c.id === prod.categoryId);
           return (
             <div
@@ -210,6 +226,62 @@ export default function ProductsPage() {
           </div>
         )}
       </div>
+
+      {/* Pagination Controls */}
+      {products.length > 20 && (
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-4 px-6 py-4 border border-stone-200 dark:border-stone-800 rounded-3xl bg-white dark:bg-stone-900 shadow-sm">
+          <span className="text-xs text-stone-500 font-medium">
+            Showing <span className="font-bold text-stone-800 dark:text-stone-200">{Math.min(products.length, (currentPage - 1) * itemsPerPage + 1)}-{Math.min(products.length, currentPage * itemsPerPage)}</span> of <span className="font-bold text-stone-800 dark:text-stone-200">{products.length}</span> products
+          </span>
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              disabled={currentPage === 1}
+              onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+              className="p-2 border border-stone-200 dark:border-stone-800 rounded-xl hover:bg-stone-100 dark:hover:bg-stone-850 text-stone-600 dark:text-stone-300 disabled:opacity-40 transition-all cursor-pointer active:scale-95"
+            >
+              <ChevronLeft className="size-4" />
+            </button>
+            {Array.from({ length: totalPages }, (_, idx) => {
+              const pageNum = idx + 1;
+              if (totalPages > 5) {
+                if (pageNum !== 1 && pageNum !== totalPages && Math.abs(pageNum - currentPage) > 1) {
+                  if (pageNum === 2 && currentPage > 3) {
+                    return <span key="ellipsis-left" className="px-2 text-stone-400">...</span>;
+                  }
+                  if (pageNum === totalPages - 1 && currentPage < totalPages - 2) {
+                    return <span key="ellipsis-right" className="px-2 text-stone-400">...</span>;
+                  }
+                  return null;
+                }
+              }
+              return (
+                <button
+                  key={pageNum}
+                  type="button"
+                  onClick={() => setCurrentPage(pageNum)}
+                  className={cn(
+                    "w-8 h-8 rounded-xl font-bold text-xs transition-all cursor-pointer active:scale-95",
+                    currentPage === pageNum
+                      ? "bg-primary text-white shadow-sm"
+                      : "border border-transparent text-stone-600 dark:text-stone-400 hover:bg-stone-100 dark:hover:bg-stone-800"
+                  )}
+                >
+                  {pageNum}
+                </button>
+              );
+            })}
+            <button
+              type="button"
+              disabled={currentPage === totalPages}
+              onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+              className="p-2 border border-stone-200 dark:border-stone-800 rounded-xl hover:bg-stone-100 dark:hover:bg-stone-850 text-stone-600 dark:text-stone-300 disabled:opacity-40 transition-all cursor-pointer active:scale-95"
+            >
+              <ChevronRight className="size-4" />
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* ── Dialog Modal ── */}
       <DialogModal

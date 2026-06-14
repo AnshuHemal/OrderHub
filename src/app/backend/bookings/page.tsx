@@ -40,6 +40,25 @@ export default function BookingsPage() {
   const [selectedBooking, setSelectedBooking] = useState<any>(null);
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
 
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 20;
+
+  const totalPages = Math.ceil(bookings.length / itemsPerPage);
+  const paginatedBookings = bookings.slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
+  );
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [selectedDate, viewMode]);
+
+  useEffect(() => {
+    if (currentPage > totalPages && totalPages > 0) {
+      setCurrentPage(totalPages);
+    }
+  }, [bookings.length, totalPages, currentPage]);
+
   useEffect(() => {
     if (customers.length > 0 && !bookingCustId) setBookingCustId(String(customers[0].id));
     if (tables.length > 0 && !bookingTableId) setBookingTableId(String(tables[0].id));
@@ -356,7 +375,7 @@ export default function BookingsPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-stone-100 dark:divide-stone-800">
-                {bookings.map((booking) => {
+                {paginatedBookings.map((booking) => {
                   const cust = customers.find((c) => c.id === booking.customerId);
                   const table = tables.find((t) => t.id === booking.tableId);
                   const status = statusConfig[booking.status as keyof typeof statusConfig] ?? statusConfig.pending;
@@ -424,6 +443,61 @@ export default function BookingsPage() {
               </tbody>
             </table>
           </div>
+          {/* Pagination Controls */}
+          {bookings.length > 20 && (
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 px-6 py-4 border-t border-stone-100 dark:border-stone-800 bg-stone-50/50 dark:bg-stone-900/40 font-sans">
+              <span className="text-xs text-stone-500 font-medium">
+                Showing <span className="font-bold text-stone-800 dark:text-stone-200">{Math.min(bookings.length, (currentPage - 1) * itemsPerPage + 1)}-{Math.min(bookings.length, currentPage * itemsPerPage)}</span> of <span className="font-bold text-stone-800 dark:text-stone-200">{bookings.length}</span> reservations
+              </span>
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  disabled={currentPage === 1}
+                  onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                  className="p-2 border border-stone-200 dark:border-stone-800 rounded-xl hover:bg-stone-100 dark:hover:bg-stone-850 text-stone-600 dark:text-stone-300 disabled:opacity-40 transition-all cursor-pointer active:scale-95"
+                >
+                  <ChevronLeft className="size-4" />
+                </button>
+                {Array.from({ length: totalPages }, (_, idx) => {
+                  const pageNum = idx + 1;
+                  if (totalPages > 5) {
+                    if (pageNum !== 1 && pageNum !== totalPages && Math.abs(pageNum - currentPage) > 1) {
+                      if (pageNum === 2 && currentPage > 3) {
+                        return <span key="ellipsis-left" className="px-2 text-stone-400">...</span>;
+                      }
+                      if (pageNum === totalPages - 1 && currentPage < totalPages - 2) {
+                        return <span key="ellipsis-right" className="px-2 text-stone-400">...</span>;
+                      }
+                      return null;
+                    }
+                  }
+                  return (
+                    <button
+                      key={pageNum}
+                      type="button"
+                      onClick={() => setCurrentPage(pageNum)}
+                      className={cn(
+                        "w-8 h-8 rounded-xl font-bold text-xs transition-all cursor-pointer active:scale-95",
+                        currentPage === pageNum
+                          ? "bg-primary text-white shadow-sm"
+                          : "border border-transparent text-stone-600 dark:text-stone-400 hover:bg-stone-100 dark:hover:bg-stone-800"
+                      )}
+                    >
+                      {pageNum}
+                    </button>
+                  );
+                })}
+                <button
+                  type="button"
+                  disabled={currentPage === totalPages}
+                  onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                  className="p-2 border border-stone-200 dark:border-stone-800 rounded-xl hover:bg-stone-100 dark:hover:bg-stone-850 text-stone-600 dark:text-stone-300 disabled:opacity-40 transition-all cursor-pointer active:scale-95"
+                >
+                  <ChevronRight className="size-4" />
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
 

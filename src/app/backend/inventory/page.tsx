@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import {
   Package,
@@ -15,6 +15,8 @@ import {
   TrendingDown,
   X,
   Loader2,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import { useApp, Ingredient } from "@/app/context/AppContext";
 import { useToast } from "@/components/ui/toast";
@@ -243,6 +245,9 @@ export default function InventoryPage() {
   const [selectedIngredient, setSelectedIngredient] = useState<Ingredient | undefined>(undefined);
   const [refreshing, setRefreshing] = useState(false);
 
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 20;
+
   const filtered = useMemo(() => {
     return ingredients.filter((ing) => {
       const matchesSearch = ing.name.toLowerCase().includes(search.toLowerCase());
@@ -254,6 +259,18 @@ export default function InventoryPage() {
       return matchesSearch && matchesFilter;
     });
   }, [ingredients, search, filter]);
+
+  const totalPages = Math.ceil(filtered.length / itemsPerPage);
+  const paginatedIngredients = filtered.slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
+  );
+
+  useEffect(() => { setCurrentPage(1); }, [search, filter]);
+
+  useEffect(() => {
+    if (currentPage > totalPages && totalPages > 0) setCurrentPage(totalPages);
+  }, [filtered.length, totalPages, currentPage]);
 
   const stats = useMemo(() => ({
     total:    ingredients.length,
@@ -424,95 +441,149 @@ export default function InventoryPage() {
           )}
         </motion.div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-          <AnimatePresence>
-            {filtered.map((ing, i) => {
-              const status = getStockStatus(ing);
-              const isLow = status === "low";
-              const isCritical = status === "critical";
-              const isWarning = isLow || isCritical;
+        <div className="space-y-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+            <AnimatePresence>
+              {paginatedIngredients.map((ing, i) => {
+                const status = getStockStatus(ing);
+                const isLow = status === "low";
+                const isCritical = status === "critical";
+                const isWarning = isLow || isCritical;
 
-              return (
-                <motion.div
-                  key={ing.id}
-                  initial={{ opacity: 0, scale: 0.96, y: 10 }}
-                  animate={{ opacity: 1, scale: 1, y: 0 }}
-                  exit={{ opacity: 0, scale: 0.96 }}
-                  transition={{ delay: i * 0.03 }}
-                  className={cn(
-                    "relative rounded-2xl border p-4 flex flex-col gap-3 group bg-white dark:bg-stone-900 transition-all hover:shadow-md",
-                    isCritical ? "border-red-300 dark:border-red-800/60" :
-                    isLow ? "border-amber-300 dark:border-amber-800/60" :
-                    "border-stone-200 dark:border-stone-800 hover:border-primary/30"
-                  )}
-                >
-                  {/* Pulsing indicator */}
-                  {isWarning && (
-                    <span className="absolute top-3 right-3 flex h-2.5 w-2.5">
-                      <span className={cn("animate-ping absolute inline-flex h-full w-full rounded-full opacity-60", isCritical ? "bg-red-500" : "bg-amber-500")} />
-                      <span className={cn("relative inline-flex rounded-full h-2.5 w-2.5", isCritical ? "bg-red-500" : "bg-amber-500")} />
-                    </span>
-                  )}
-
-                  {/* Icon */}
-                  <div className={cn(
-                    "flex items-center justify-center w-10 h-10 rounded-xl border",
-                    isCritical ? "bg-red-50 dark:bg-red-500/10 border-red-200 dark:border-red-500/20" :
-                    isLow ? "bg-amber-50 dark:bg-amber-500/10 border-amber-200 dark:border-amber-500/20" :
-                    "bg-stone-50 dark:bg-stone-800 border-stone-200 dark:border-stone-700"
-                  )}>
-                    <FlaskConical className={cn("size-5", isCritical ? "text-red-500" : isLow ? "text-amber-500" : "text-primary")} />
-                  </div>
-
-                  {/* Info */}
-                  <div>
-                    <h3 className="font-extrabold text-stone-800 dark:text-stone-100 text-sm leading-tight">{ing.name}</h3>
-                    <div className="flex items-baseline gap-1 mt-1">
-                      <span className={cn("text-2xl font-black", isCritical ? "text-red-500" : isLow ? "text-amber-500" : "text-stone-800 dark:text-stone-100")}>
-                        {ing.quantity % 1 === 0 ? ing.quantity : ing.quantity.toFixed(1)}
+                return (
+                  <motion.div
+                    key={ing.id}
+                    initial={{ opacity: 0, scale: 0.96, y: 10 }}
+                    animate={{ opacity: 1, scale: 1, y: 0 }}
+                    exit={{ opacity: 0, scale: 0.96 }}
+                    transition={{ delay: i * 0.03 }}
+                    className={cn(
+                      "relative rounded-2xl border p-4 flex flex-col gap-3 group bg-white dark:bg-stone-900 transition-all hover:shadow-md",
+                      isCritical ? "border-red-300 dark:border-red-800/60" :
+                      isLow ? "border-amber-300 dark:border-amber-800/60" :
+                      "border-stone-200 dark:border-stone-800 hover:border-primary/30"
+                    )}
+                  >
+                    {/* Pulsing indicator */}
+                    {isWarning && (
+                      <span className="absolute top-3 right-3 flex h-2.5 w-2.5">
+                        <span className={cn("animate-ping absolute inline-flex h-full w-full rounded-full opacity-60", isCritical ? "bg-red-500" : "bg-amber-500")} />
+                        <span className={cn("relative inline-flex rounded-full h-2.5 w-2.5", isCritical ? "bg-red-500" : "bg-amber-500")} />
                       </span>
-                      <span className="text-sm text-stone-400">{ing.unit}</span>
+                    )}
+
+                    {/* Icon */}
+                    <div className={cn(
+                      "flex items-center justify-center w-10 h-10 rounded-xl border",
+                      isCritical ? "bg-red-50 dark:bg-red-500/10 border-red-200 dark:border-red-500/20" :
+                      isLow ? "bg-amber-50 dark:bg-amber-500/10 border-amber-200 dark:border-amber-500/20" :
+                      "bg-stone-50 dark:bg-stone-800 border-stone-200 dark:border-stone-700"
+                    )}>
+                      <FlaskConical className={cn("size-5", isCritical ? "text-red-500" : isLow ? "text-amber-500" : "text-primary")} />
                     </div>
-                  </div>
 
-                  {/* Stock bar */}
-                  <StockBar ingredient={ing} />
+                    {/* Info */}
+                    <div>
+                      <h3 className="font-extrabold text-stone-800 dark:text-stone-100 text-sm leading-tight">{ing.name}</h3>
+                      <div className="flex items-baseline gap-1 mt-1">
+                        <span className={cn("text-2xl font-black", isCritical ? "text-red-500" : isLow ? "text-amber-500" : "text-stone-800 dark:text-stone-100")}>
+                          {ing.quantity % 1 === 0 ? ing.quantity : ing.quantity.toFixed(1)}
+                        </span>
+                        <span className="text-sm text-stone-400">{ing.unit}</span>
+                      </div>
+                    </div>
 
-                  {/* Status + threshold */}
-                  <div className="flex items-center justify-between text-xs">
-                    <span className={cn("flex items-center gap-1 font-bold", isCritical ? "text-red-500" : isLow ? "text-amber-500" : "text-emerald-600 dark:text-emerald-400")}>
-                      {isCritical ? <><AlertTriangle className="size-3" />Critical</> :
-                       isLow ?     <><TrendingDown className="size-3" />Low Stock</> :
-                                   <><CheckCircle2 className="size-3" />Healthy</>}
-                    </span>
-                    <span className="text-stone-400">min: {ing.minThreshold}{ing.unit}</span>
-                  </div>
+                    {/* Stock bar */}
+                    <StockBar ingredient={ing} />
 
-                  {/* Action row — revealed on hover */}
-                  <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity pt-1 border-t border-stone-100 dark:border-stone-800">
+                    {/* Status + threshold */}
+                    <div className="flex items-center justify-between text-xs">
+                      <span className={cn("flex items-center gap-1 font-bold", isCritical ? "text-red-500" : isLow ? "text-amber-500" : "text-emerald-600 dark:text-emerald-400")}>
+                        {isCritical ? <><AlertTriangle className="size-3" />Critical</> :
+                         isLow ?     <><TrendingDown className="size-3" />Low Stock</> :
+                                     <><CheckCircle2 className="size-3" />Healthy</>}
+                      </span>
+                      <span className="text-stone-400">min: {ing.minThreshold}{ing.unit}</span>
+                    </div>
+
+                    {/* Action row — revealed on hover */}
+                    <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity pt-1 border-t border-stone-100 dark:border-stone-800">
+                      <button
+                        onClick={() => openRestock(ing)}
+                        className="flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/20 hover:bg-emerald-100 dark:hover:bg-emerald-500/20 text-emerald-700 dark:text-emerald-400 text-xs font-bold transition-all"
+                      >
+                        <Plus className="size-3" /> Restock
+                      </button>
+                      <button
+                        onClick={() => openEdit(ing)}
+                        className="px-2.5 py-1.5 rounded-lg border border-stone-200 dark:border-stone-700 hover:bg-stone-100 dark:hover:bg-stone-800 text-stone-500 dark:text-stone-400 text-xs transition-all"
+                      >
+                        <Pencil className="size-3" />
+                      </button>
+                      <button
+                        onClick={() => handleDelete(ing)}
+                        className="px-2.5 py-1.5 rounded-lg bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/20 hover:bg-red-100 dark:hover:bg-red-500/20 text-red-500 text-xs transition-all"
+                      >
+                        <Trash2 className="size-3" />
+                      </button>
+                    </div>
+                  </motion.div>
+                );
+              })}
+            </AnimatePresence>
+          </div>
+
+          {/* Pagination Controls */}
+          {filtered.length > 20 && (
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 px-6 py-4 border border-stone-200 dark:border-stone-800 rounded-2xl bg-white dark:bg-stone-900/40">
+              <span className="text-xs text-stone-500 font-medium">
+                Showing <span className="font-bold text-stone-800 dark:text-stone-200">{Math.min(filtered.length, (currentPage - 1) * itemsPerPage + 1)}-{Math.min(filtered.length, currentPage * itemsPerPage)}</span> of <span className="font-bold text-stone-800 dark:text-stone-200">{filtered.length}</span> ingredients
+              </span>
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  disabled={currentPage === 1}
+                  onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                  className="p-2 border border-stone-200 dark:border-stone-800 rounded-xl hover:bg-stone-100 dark:hover:bg-stone-800 text-stone-600 dark:text-stone-300 disabled:opacity-40 transition-all cursor-pointer active:scale-95"
+                >
+                  <ChevronLeft className="size-4" />
+                </button>
+                {Array.from({ length: totalPages }, (_, idx) => {
+                  const pageNum = idx + 1;
+                  if (totalPages > 5) {
+                    if (pageNum !== 1 && pageNum !== totalPages && Math.abs(pageNum - currentPage) > 1) {
+                      if (pageNum === 2 && currentPage > 3) return <span key="ellipsis-left" className="px-2 text-stone-400">...</span>;
+                      if (pageNum === totalPages - 1 && currentPage < totalPages - 2) return <span key="ellipsis-right" className="px-2 text-stone-400">...</span>;
+                      return null;
+                    }
+                  }
+                  return (
                     <button
-                      onClick={() => openRestock(ing)}
-                      className="flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/20 hover:bg-emerald-100 dark:hover:bg-emerald-500/20 text-emerald-700 dark:text-emerald-400 text-xs font-bold transition-all"
+                      key={pageNum}
+                      type="button"
+                      onClick={() => setCurrentPage(pageNum)}
+                      className={cn(
+                        "w-8 h-8 rounded-xl font-bold text-xs transition-all cursor-pointer active:scale-95",
+                        currentPage === pageNum
+                          ? "bg-primary text-white shadow-sm"
+                          : "border border-transparent text-stone-600 dark:text-stone-400 hover:bg-stone-100 dark:hover:bg-stone-800"
+                      )}
                     >
-                      <Plus className="size-3" /> Restock
+                      {pageNum}
                     </button>
-                    <button
-                      onClick={() => openEdit(ing)}
-                      className="px-2.5 py-1.5 rounded-lg border border-stone-200 dark:border-stone-700 hover:bg-stone-100 dark:hover:bg-stone-800 text-stone-500 dark:text-stone-400 text-xs transition-all"
-                    >
-                      <Pencil className="size-3" />
-                    </button>
-                    <button
-                      onClick={() => handleDelete(ing)}
-                      className="px-2.5 py-1.5 rounded-lg bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/20 hover:bg-red-100 dark:hover:bg-red-500/20 text-red-500 text-xs transition-all"
-                    >
-                      <Trash2 className="size-3" />
-                    </button>
-                  </div>
-                </motion.div>
-              );
-            })}
-          </AnimatePresence>
+                  );
+                })}
+                <button
+                  type="button"
+                  disabled={currentPage === totalPages}
+                  onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                  className="p-2 border border-stone-200 dark:border-stone-800 rounded-xl hover:bg-stone-100 dark:hover:bg-stone-800 text-stone-600 dark:text-stone-300 disabled:opacity-40 transition-all cursor-pointer active:scale-95"
+                >
+                  <ChevronRight className="size-4" />
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
 

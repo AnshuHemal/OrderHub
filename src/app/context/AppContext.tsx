@@ -300,7 +300,7 @@ interface AppContextType {
   removeCoupon: () => void;
   linkCustomerToOrder: (customerId: string | null) => void;
   sendOrderToKitchen: () => void;
-  processOrderPayment: (methodId: number, ref?: string) => void;
+  processOrderPayment: (methodId: number, ref?: string) => Promise<boolean>;
   cancelDraftOrder: (id: string) => void;
   sendEmailReceipt: (orderId: string, email: string) => Promise<any>;
   editDraftOrder: (id: string) => void;
@@ -1610,8 +1610,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
-  const processOrderPayment = async (methodId: number, ref?: string) => {
-    if (!currentOrder) return;
+  const processOrderPayment = async (methodId: number, ref?: string): Promise<boolean> => {
+    if (!currentOrder) return false;
 
     try {
       const isNewOrder = currentOrder.id.startsWith('temp_');
@@ -1633,7 +1633,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         orderId = created.id;
       }
 
-      const methodEnum = methodId === 1 ? 'CASH' : methodId === 2 ? 'CARD' : 'UPI';
+      const methodEnum = Number(methodId) === 1 ? 'CASH' : Number(methodId) === 2 ? 'CARD' : 'UPI';
       await api.post(`/orders/${orderId}/pay`, {
         method: methodEnum,
         reference: ref || "",
@@ -1643,9 +1643,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
       await fetchOrders();
       await fetchFloorsAndTables();
-      setCurrentOrder(null);
+      return true;
     } catch (err) {
       console.error("processOrderPayment error:", err);
+      throw err;
     }
   };
 

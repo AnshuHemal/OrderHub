@@ -25,7 +25,7 @@ function OrderCheckoutContent() {
   const { success, error: toastError, info, warning } = useToast();
   const {
     currentUser, products, categories, customers, tables,
-    paymentMethods, currentOrder, cancelDraftOrder,
+    paymentMethods, currentOrder, setCurrentOrder, cancelDraftOrder,
     linkCustomerToOrder, addToCart, updateCartQty,
     applyManualCoupon, removeCoupon, sendOrderToKitchen,
     processOrderPayment, createCustomer, sendEmailReceipt,
@@ -34,6 +34,7 @@ function OrderCheckoutContent() {
 
   const productSearch = searchParams.get("search") || "";
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
+  const [isPaying, setIsPaying] = useState(false);
 
   // ── Modifiers ─────────────────────────────────────────────────────────────
   const [selectedModifierProduct, setSelectedModifierProduct] = useState<Product | null>(null);
@@ -152,6 +153,148 @@ function OrderCheckoutContent() {
     return 0;
   }, [splitMode, currentOrder, splitGuests, expandedItems, itemSelectedIds, customAmountInput]);
 
+  // ── Receipt Modal & Helper Functions ────────────────────────────────────────
+
+  const inputCls = (err?: string) =>
+    cn(
+      "w-full px-3.5 py-2.5 bg-stone-50 dark:bg-stone-950 border rounded-xl text-stone-900 dark:text-stone-100 focus:outline-none focus:ring-2 transition-all placeholder:text-stone-400 text-sm",
+      err
+        ? "border-red-400 focus:ring-red-400/30"
+        : "border-stone-200 dark:border-stone-800 focus:ring-primary/30 focus:border-primary"
+    );
+
+  const labelCls = "block text-stone-500 dark:text-stone-400 font-bold mb-1.5 text-sm";
+
+  const handleEmailReceipt = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!receiptEmailInput || !receiptOrder) return;
+    setEmailSentStatus(true);
+    try {
+      const res = await sendEmailReceipt(receiptOrder.id, receiptEmailInput);
+      if (res?.previewUrl) info("Receipt Preview", `Ethereal test mode — preview available in server logs.`);
+      else if (res?.status === "logged") info("Offline Mode", "Receipt simulation logged to the server terminal.");
+      else success("Receipt Sent", `Email delivered to ${receiptEmailInput} successfully.`);
+    } catch {
+      toastError("Email Failed", "Could not send receipt. Please check your connection.");
+    } finally {
+      setEmailSentStatus(false);
+    }
+  };
+
+  const renderReceiptModal = () => {
+    if (!receiptOrder) return null;
+    return (
+      <DialogModal
+        isOpen={showReceiptModal}
+        onClose={() => setShowReceiptModal(false)}
+        title="Order Receipt"
+        description={`Order ${receiptOrder.orderNumber} — ${new Date(receiptOrder.createdAt).toLocaleString()}`}
+        icon={<Receipt className="size-5" />}
+        size="md"
+      >
+        <div className="space-y-5">
+          {/* Receipt preview */}
+          <div className="p-4 bg-stone-50 dark:bg-stone-950 border border-stone-200 dark:border-stone-800 rounded-2xl font-mono text-[11px] leading-relaxed space-y-3">
+            <div className="text-center space-y-1">
+              <h4 className="font-black text-sm uppercase tracking-wider">Odoo Cafe</h4>
+              <p className="text-stone-500">Ground Floor Zone, POS Shift</p>
+              <p className="text-stone-500">{new Date(receiptOrder.createdAt).toLocaleString()}</p>
+            </div>
+            <div className="border-t border-dashed border-stone-300 dark:border-stone-700" />
+            <div className="space-y-0.5 text-stone-600 dark:text-stone-400">
+              <p><span className="font-bold text-stone-800 dark:text-stone-200">Order:</span> {receiptOrder.orderNumber}</p>
+              <p><span className="font-bold text-stone-800 dark:text-stone-200">Table:</span> {receiptOrder.tableId ? tables.find((t) => t.id === receiptOrder.tableId)?.tableNumber : "Takeaway"}</p>
+              <p><span className="font-bold text-stone-800 dark:text-stone-200">Guest:</span> {receiptOrder.customerId ? customers.find((c) => c.id === receiptOrder.customerId)?.name ?? "—" : "Walk-in"}</p>
+            </div>
+            <div className="border-t border-dashed border-stone-300 dark:border-stone-700" />
+            <div className="space-y-1">
+              {receiptOrder.items.map((it, idx) => (
+                <div key={idx} className="flex justify-between">
+                  <span>{it.name} ×{it.quantity}</span>
+                  <span className="font-bold">₹{it.total.toFixed(2)}</span>
+                </div>
+              ))}
+            </div>
+            <div className="border-t border-dashed border-stone-300 dark:border-stone-700" />
+            <div className="space-y-0.5 text-right">
+              <p className="text-stone-500">Subtotal: ₹{receiptOrder.subtotal.toFixed(2)}</p>
+              <p className="text-stone-500">Taxes: ₹{receiptOrder.tax.toFixed(2)}</p>
+              {receiptOrder.discounts > 0 && <p className="text-red-500">Discounts: -₹{receiptOrder.discounts.toFixed(2)}</p>}
+              <p className="font-black text-sm text-stone-900 dark:text-stone-100 pt-1 border-t border-dashed border-stone-300 dark:border-stone-700">TOTAL: ₹{receiptOrder.total.toFixed(2)}</p>
+            </div>
+            <div className="border-t border-dashed border-stone-300 dark:border-stone-700 pt-2 text-center text-[10px] text-stone-400 uppercase tracking-widest">
+              Thank you for your visit!
+            </div>
+          </div>
+
+          {/* Email receipt */}
+          <form onSubmit={handleEmailReceipt} className="space-y-2 border-t border-stone-100 dark:border-stone-800 pt-4">
+            <label className="block text-xs text-stone-500 font-bold uppercase tracking-wider">Send Digital Receipt</label>
+            <div className="flex gap-2">
+              <input type="email" required value={receiptEmailInput} onChange={(e) => setReceiptEmailInput(e.target.value)} placeholder="guest@gmail.com" className={inputCls() + " flex-1 font-mono"} />
+              <button type="submit" disabled={emailSentStatus} className="flex items-center gap-1.5 px-4 py-2.5 bg-primary text-white font-bold rounded-xl hover:bg-primary-hover transition-all disabled:opacity-50 shrink-0">
+                <Send className="size-3.5" />
+                {emailSentStatus ? "Sending…" : "Send"}
+              </button>
+            </div>
+          </form>
+
+          {/* Actions */}
+          <div className="space-y-3 pt-4 border-t border-stone-100 dark:border-stone-800">
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={() => {
+                  if (receiptOrder) {
+                    printOrder(receiptOrder, false);
+                  }
+                }}
+                className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-stone-900 text-white dark:bg-stone-100 dark:text-stone-900 rounded-xl font-bold hover:bg-stone-800 dark:hover:bg-stone-200 transition-colors cursor-pointer"
+              >
+                <Printer className="size-4 shrink-0" /> Print Receipt
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (!receiptOrder) return;
+                  downloadReceiptPDF({
+                    orderNumber: receiptOrder.orderNumber, createdAt: receiptOrder.createdAt,
+                    cashierName: currentUser?.name ?? "Cashier",
+                    guestName: receiptOrder.customerId ? (customers.find((c) => c.id === receiptOrder.customerId)?.name ?? "Guest") : "Walk-in",
+                    tableNumber: receiptOrder.tableId ? (tables.find((t) => t.id === receiptOrder.tableId)?.tableNumber ?? "—") : "Takeaway",
+                    items: receiptOrder.items.map((it) => {
+                      const modsList = it.selectedModifiers && (it.selectedModifiers as any).length > 0
+                        ? ` [${(it.selectedModifiers as any).map((m: any) => m.name).join(", ")}]`
+                        : "";
+                      return {
+                        name: `${it.name}${modsList}`,
+                        quantity: it.quantity,
+                        total: it.total
+                      };
+                    }),
+                    subtotal: receiptOrder.subtotal, tax: receiptOrder.tax, discounts: receiptOrder.discounts, total: receiptOrder.total,
+                    paymentMethod: paymentMethods.find((p) => p.id === receiptOrder.paymentMethodId)?.name ?? "Cash",
+                    paymentReference: receiptOrder.paymentReference ?? undefined,
+                  });
+                }}
+                className="flex-1 flex items-center justify-center gap-2 py-2.5 border border-stone-200 dark:border-stone-800 text-stone-600 dark:text-stone-300 rounded-xl font-bold hover:bg-stone-50 dark:hover:bg-stone-800 transition-colors cursor-pointer"
+              >
+                <FileText className="size-4 shrink-0" /> Print PDF
+              </button>
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowReceiptModal(false)}
+              className="w-full py-2.5 bg-primary hover:bg-primary-hover text-white font-bold rounded-xl shadow transition-all active:scale-95 animate-pulse cursor-pointer"
+            >
+              Close Receipt
+            </button>
+          </div>
+        </div>
+      </DialogModal>
+    );
+  };
+
   // ── Empty state ───────────────────────────────────────────────────────────
   if (!currentOrder) {
     return (
@@ -172,6 +315,8 @@ function OrderCheckoutContent() {
           <LayoutGrid className="size-4" />
           Go to Floor Plan
         </button>
+
+        {renderReceiptModal()}
       </div>
     );
   }
@@ -225,9 +370,9 @@ function OrderCheckoutContent() {
     }
   };
 
-  const handleCheckoutSubmit = (e: React.FormEvent) => {
+  const handleCheckoutSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedPaymentId) return;
+    if (!selectedPaymentId || isPaying) return;
     const pm = paymentMethods.find((p) => p.id === selectedPaymentId);
     if (!pm) return;
 
@@ -247,19 +392,34 @@ function OrderCheckoutContent() {
     }
 
     const completedOrder: Order = { ...currentOrder, status: "paid", paymentMethodId: selectedPaymentId, paymentReference: refStr };
-    processOrderPayment(selectedPaymentId, refStr);
-    setShowCheckoutModal(false);
-    setReceiptOrder(completedOrder);
-    if (completedOrder.customerId) {
-      const cust = customers.find((c) => c.id === completedOrder.customerId);
-      if (cust) setReceiptEmailInput(cust.email);
+
+    setIsPaying(true);
+    try {
+      const ok = await processOrderPayment(selectedPaymentId, refStr);
+      if (ok) {
+        setShowCheckoutModal(false);
+        setReceiptOrder(completedOrder);
+        if (completedOrder.customerId) {
+          const cust = customers.find((c) => c.id === completedOrder.customerId);
+          if (cust) setReceiptEmailInput(cust.email);
+        }
+        setShowReceiptModal(true);
+        success("Payment Succeeded", `Order ${completedOrder.orderNumber} settled successfully.`);
+        setCurrentOrder(null);
+        setCashReceived(""); setCardReference(""); setSelectedPaymentId(null);
+      } else {
+        toastError("Payment Failed", "Could not process order payment.");
+      }
+    } catch (err: any) {
+      console.error(err);
+      toastError("Payment Error", err?.message || "An error occurred while processing payment.");
+    } finally {
+      setIsPaying(false);
     }
-    setShowReceiptModal(true);
-    setCashReceived(""); setCardReference(""); setSelectedPaymentId(null);
   };
 
-  const handleEqualSplitGuestPayment = (guestIndex: number) => {
-    if (!selectedPaymentId) return;
+  const handleEqualSplitGuestPayment = async (guestIndex: number) => {
+    if (!selectedPaymentId || isPaying) return;
     const pm = paymentMethods.find((p) => p.id === selectedPaymentId);
     if (!pm) return;
 
@@ -307,19 +467,33 @@ function OrderCheckoutContent() {
         paymentReference: serializedRef
       };
 
-      processOrderPayment(selectedPaymentId, serializedRef);
-      setShowCheckoutModal(false);
-      setReceiptOrder(completedOrder);
-      if (completedOrder.customerId) {
-        const cust = customers.find((c) => c.id === completedOrder.customerId);
-        if (cust) setReceiptEmailInput(cust.email);
+      setIsPaying(true);
+      try {
+        const ok = await processOrderPayment(selectedPaymentId, serializedRef);
+        if (ok) {
+          setShowCheckoutModal(false);
+          setReceiptOrder(completedOrder);
+          if (completedOrder.customerId) {
+            const cust = customers.find((c) => c.id === completedOrder.customerId);
+            if (cust) setReceiptEmailInput(cust.email);
+          }
+          setShowReceiptModal(true);
+          success("Payment Succeeded", `Order ${completedOrder.orderNumber} settled equally.`);
+          setCurrentOrder(null);
+        } else {
+          toastError("Payment Failed", "Could not process order payment.");
+        }
+      } catch (err: any) {
+        console.error(err);
+        toastError("Payment Error", err?.message || "An error occurred while processing payment.");
+      } finally {
+        setIsPaying(false);
       }
-      setShowReceiptModal(true);
     }
   };
 
-  const handleItemSplitGuestPayment = (selectedTotal: number, itemNames: string[]) => {
-    if (!selectedPaymentId) return;
+  const handleItemSplitGuestPayment = async (selectedTotal: number, itemNames: string[]) => {
+    if (!selectedPaymentId || isPaying) return;
     const pm = paymentMethods.find((p) => p.id === selectedPaymentId);
     if (!pm) return;
 
@@ -369,19 +543,33 @@ function OrderCheckoutContent() {
         paymentReference: serializedRef
       };
 
-      processOrderPayment(selectedPaymentId, serializedRef);
-      setShowCheckoutModal(false);
-      setReceiptOrder(completedOrder);
-      if (completedOrder.customerId) {
-        const cust = customers.find((c) => c.id === completedOrder.customerId);
-        if (cust) setReceiptEmailInput(cust.email);
+      setIsPaying(true);
+      try {
+        const ok = await processOrderPayment(selectedPaymentId, serializedRef);
+        if (ok) {
+          setShowCheckoutModal(false);
+          setReceiptOrder(completedOrder);
+          if (completedOrder.customerId) {
+            const cust = customers.find((c) => c.id === completedOrder.customerId);
+            if (cust) setReceiptEmailInput(cust.email);
+          }
+          setShowReceiptModal(true);
+          success("Payment Succeeded", `Order ${completedOrder.orderNumber} settled by items.`);
+          setCurrentOrder(null);
+        } else {
+          toastError("Payment Failed", "Could not process order payment.");
+        }
+      } catch (err: any) {
+        console.error(err);
+        toastError("Payment Error", err?.message || "An error occurred while processing payment.");
+      } finally {
+        setIsPaying(false);
       }
-      setShowReceiptModal(true);
     }
   };
 
-  const handleCustomSplitPayment = (amount: number, remainingTotal: number) => {
-    if (!selectedPaymentId) return;
+  const handleCustomSplitPayment = async (amount: number, remainingTotal: number) => {
+    if (!selectedPaymentId || isPaying) return;
     const pm = paymentMethods.find((p) => p.id === selectedPaymentId);
     if (!pm) return;
 
@@ -434,14 +622,28 @@ function OrderCheckoutContent() {
         paymentReference: serializedRef
       };
 
-      processOrderPayment(selectedPaymentId, serializedRef);
-      setShowCheckoutModal(false);
-      setReceiptOrder(completedOrder);
-      if (completedOrder.customerId) {
-        const cust = customers.find((c) => c.id === completedOrder.customerId);
-        if (cust) setReceiptEmailInput(cust.email);
+      setIsPaying(true);
+      try {
+        const ok = await processOrderPayment(selectedPaymentId, serializedRef);
+        if (ok) {
+          setShowCheckoutModal(false);
+          setReceiptOrder(completedOrder);
+          if (completedOrder.customerId) {
+            const cust = customers.find((c) => c.id === completedOrder.customerId);
+            if (cust) setReceiptEmailInput(cust.email);
+          }
+          setShowReceiptModal(true);
+          success("Payment Succeeded", `Order ${completedOrder.orderNumber} settled with custom split.`);
+          setCurrentOrder(null);
+        } else {
+          toastError("Payment Failed", "Could not process order payment.");
+        }
+      } catch (err: any) {
+        console.error(err);
+        toastError("Payment Error", err?.message || "An error occurred while processing payment.");
+      } finally {
+        setIsPaying(false);
       }
-      setShowReceiptModal(true);
     }
   };
 
@@ -480,27 +682,7 @@ function OrderCheckoutContent() {
     } finally { setCustomerSaving(false); }
   };
 
-  const handleEmailReceipt = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!receiptEmailInput || !receiptOrder) return;
-    setEmailSentStatus(true);
-    try {
-      const res = await sendEmailReceipt(receiptOrder.id, receiptEmailInput);
-      if (res?.previewUrl) info("Receipt Preview", `Ethereal test mode — preview available in server logs.`);
-      else if (res?.status === "logged") info("Offline Mode", "Receipt simulation logged to the server terminal.");
-      else success("Receipt Sent", `Email delivered to ${receiptEmailInput} successfully.`);
-    } catch { toastError("Email Failed", "Could not send receipt. Please check your connection."); }
-    finally { setEmailSentStatus(false); }
-  };
 
-  const inputCls = (err?: string) =>
-    cn(
-      "w-full px-3.5 py-2.5 bg-stone-50 dark:bg-stone-950 border rounded-xl text-stone-900 dark:text-stone-100 focus:outline-none focus:ring-2 transition-all placeholder:text-stone-400 text-sm",
-      err
-        ? "border-red-400 focus:ring-red-400/30"
-        : "border-stone-200 dark:border-stone-800 focus:ring-primary/30 focus:border-primary"
-    );
-  const labelCls = "block text-stone-500 dark:text-stone-400 font-bold mb-1.5 text-sm";
 
   const cartItemCount = currentOrder.items.reduce((s, i) => s + i.quantity, 0);
   const needsGuest = !!currentOrder.tableId && !linkedCustomer && currentOrder.items.length > 0;
@@ -1297,133 +1479,34 @@ function OrderCheckoutContent() {
             <button
               type="submit"
               disabled={
+                isPaying ||
                 !selectedPaymentId ||
                 activePaymentAmount <= 0.001 ||
                 (selectedPaymentId === 1 && (isNaN(parseFloat(cashReceived)) || parseFloat(cashReceived) < activePaymentAmount)) ||
                 (selectedPaymentId === 2 && !cardReference)
               }
-              className="px-5 py-2.5 bg-primary hover:bg-primary-hover text-white font-bold rounded-xl shadow transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="px-5 py-2.5 bg-primary hover:bg-primary-hover text-white font-bold rounded-xl shadow transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
             >
-              {splitMode === "full" && "Settle Order"}
-              {splitMode === "equal" && `Settle Guest ${activeEqualGuestIndex}`}
-              {splitMode === "item" && `Settle Selected`}
-              {splitMode === "custom" && `Settle Partial Amount`}
+              {isPaying ? (
+                <>
+                  <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  Processing...
+                </>
+              ) : (
+                <>
+                  {splitMode === "full" && "Settle Order"}
+                  {splitMode === "equal" && `Settle Guest ${activeEqualGuestIndex}`}
+                  {splitMode === "item" && `Settle Selected`}
+                  {splitMode === "custom" && `Settle Partial Amount`}
+                </>
+              )}
             </button>
           </div>
         </form>
       </DialogModal>
 
       {/* Modal 4: Receipt */}
-      {receiptOrder && (
-        <DialogModal
-          isOpen={showReceiptModal}
-          onClose={() => setShowReceiptModal(false)}
-          title="Order Receipt"
-          description={`Order ${receiptOrder.orderNumber} — ${new Date(receiptOrder.createdAt).toLocaleString()}`}
-          icon={<Receipt className="size-5" />}
-          size="md"
-        >
-          <div className="space-y-5">
-            {/* Receipt preview */}
-            <div className="p-4 bg-stone-50 dark:bg-stone-950 border border-stone-200 dark:border-stone-800 rounded-2xl font-mono text-[11px] leading-relaxed space-y-3">
-              <div className="text-center space-y-1">
-                <h4 className="font-black text-sm uppercase tracking-wider">Odoo Cafe</h4>
-                <p className="text-stone-500">Ground Floor Zone, POS Shift</p>
-                <p className="text-stone-500">{new Date(receiptOrder.createdAt).toLocaleString()}</p>
-              </div>
-              <div className="border-t border-dashed border-stone-300 dark:border-stone-700" />
-              <div className="space-y-0.5 text-stone-600 dark:text-stone-400">
-                <p><span className="font-bold text-stone-800 dark:text-stone-200">Order:</span> {receiptOrder.orderNumber}</p>
-                <p><span className="font-bold text-stone-800 dark:text-stone-200">Table:</span> {receiptOrder.tableId ? tables.find((t) => t.id === receiptOrder.tableId)?.tableNumber : "Takeaway"}</p>
-                <p><span className="font-bold text-stone-800 dark:text-stone-200">Guest:</span> {receiptOrder.customerId ? customers.find((c) => c.id === receiptOrder.customerId)?.name ?? "—" : "Walk-in"}</p>
-              </div>
-              <div className="border-t border-dashed border-stone-300 dark:border-stone-700" />
-              <div className="space-y-1">
-                {receiptOrder.items.map((it, idx) => (
-                  <div key={idx} className="flex justify-between">
-                    <span>{it.name} ×{it.quantity}</span>
-                    <span className="font-bold">₹{it.total.toFixed(2)}</span>
-                  </div>
-                ))}
-              </div>
-              <div className="border-t border-dashed border-stone-300 dark:border-stone-700" />
-              <div className="space-y-0.5 text-right">
-                <p className="text-stone-500">Subtotal: ₹{receiptOrder.subtotal.toFixed(2)}</p>
-                <p className="text-stone-500">Taxes: ₹{receiptOrder.tax.toFixed(2)}</p>
-                {receiptOrder.discounts > 0 && <p className="text-red-500">Discounts: -₹{receiptOrder.discounts.toFixed(2)}</p>}
-                <p className="font-black text-sm text-stone-900 dark:text-stone-100 pt-1 border-t border-dashed border-stone-300 dark:border-stone-700">TOTAL: ₹{receiptOrder.total.toFixed(2)}</p>
-              </div>
-              <div className="border-t border-dashed border-stone-300 dark:border-stone-700 pt-2 text-center text-[10px] text-stone-400 uppercase tracking-widest">
-                Thank you for your visit!
-              </div>
-            </div>
-
-            {/* Email receipt */}
-            <form onSubmit={handleEmailReceipt} className="space-y-2 border-t border-stone-100 dark:border-stone-800 pt-4">
-              <label className="block text-xs text-stone-500 font-bold uppercase tracking-wider">Send Digital Receipt</label>
-              <div className="flex gap-2">
-                <input type="email" required value={receiptEmailInput} onChange={(e) => setReceiptEmailInput(e.target.value)} placeholder="guest@gmail.com" className={inputCls() + " flex-1 font-mono"} />
-                <button type="submit" disabled={emailSentStatus} className="flex items-center gap-1.5 px-4 py-2.5 bg-primary text-white font-bold rounded-xl hover:bg-primary-hover transition-all disabled:opacity-50 shrink-0">
-                  <Send className="size-3.5" />
-                  {emailSentStatus ? "Sending…" : "Send"}
-                </button>
-              </div>
-            </form>
-
-            {/* Actions */}
-            <div className="space-y-3 pt-4 border-t border-stone-100 dark:border-stone-800">
-              <div className="flex gap-3">
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (receiptOrder) {
-                      printOrder(receiptOrder, false);
-                    }
-                  }}
-                  className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-stone-900 text-white dark:bg-stone-100 dark:text-stone-900 rounded-xl font-bold hover:bg-stone-800 dark:hover:bg-stone-200 transition-colors cursor-pointer"
-                >
-                  <Printer className="size-4 shrink-0" /> Print Receipt
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (!receiptOrder) return;
-                    downloadReceiptPDF({
-                      orderNumber: receiptOrder.orderNumber, createdAt: receiptOrder.createdAt,
-                      cashierName: currentUser?.name ?? "Cashier",
-                      guestName: receiptOrder.customerId ? (customers.find((c) => c.id === receiptOrder.customerId)?.name ?? "Guest") : "Walk-in",
-                      tableNumber: receiptOrder.tableId ? (tables.find((t) => t.id === receiptOrder.tableId)?.tableNumber ?? "—") : "Takeaway",
-                      items: receiptOrder.items.map((it) => {
-                        const modsList = it.selectedModifiers && (it.selectedModifiers as any).length > 0
-                          ? ` [${(it.selectedModifiers as any).map((m: any) => m.name).join(", ")}]`
-                          : "";
-                        return {
-                          name: `${it.name}${modsList}`,
-                          quantity: it.quantity,
-                          total: it.total
-                        };
-                      }),
-                      subtotal: receiptOrder.subtotal, tax: receiptOrder.tax, discounts: receiptOrder.discounts, total: receiptOrder.total,
-                      paymentMethod: paymentMethods.find((p) => p.id === receiptOrder.paymentMethodId)?.name ?? "Cash",
-                      paymentReference: receiptOrder.paymentReference ?? undefined,
-                    });
-                  }}
-                  className="flex-1 flex items-center justify-center gap-2 py-2.5 border border-stone-200 dark:border-stone-800 text-stone-600 dark:text-stone-300 rounded-xl font-bold hover:bg-stone-50 dark:hover:bg-stone-800 transition-colors cursor-pointer"
-                >
-                  <FileText className="size-4 shrink-0" /> Print PDF
-                </button>
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowReceiptModal(false)}
-                className="w-full py-2.5 bg-primary hover:bg-primary-hover text-white font-bold rounded-xl shadow transition-all active:scale-95 animate-pulse cursor-pointer"
-              >
-                Close Receipt
-              </button>
-            </div>
-          </div>
-        </DialogModal>
-      )}
+      {renderReceiptModal()}
 
       <ModifierDialog
         isOpen={isModifierOpen}

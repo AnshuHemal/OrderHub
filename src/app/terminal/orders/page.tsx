@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, Suspense } from "react";
+import React, { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useApp, Order } from "@/app/context/AppContext";
 import { downloadReceiptPDF } from "@/lib/receipt-pdf";
@@ -10,7 +10,7 @@ import { useConfirm } from "@/components/ui/confirm-dialog";
 import {
   ClipboardList, CheckCircle2, XCircle, Clock, Pencil,
   Trash2, Eye, Receipt, Send, Printer, MapPin, Package, RefreshCcw, FileText,
-  Flame, Utensils
+  Flame, Utensils, ChevronLeft, ChevronRight
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import RefundDialog from "@/components/shared/RefundDialog";
@@ -58,6 +58,9 @@ function OrdersLogContent() {
 
   if (!activeSession || !currentUser) return null;
 
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 20;
+
   const { success, error: toastError, info } = useToast();
   const confirm = useConfirm();
 
@@ -82,6 +85,16 @@ function OrdersLogContent() {
       (cust && cust.name.toLowerCase().includes(orderSearch.toLowerCase()))
     );
   });
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [orderSearch, statusTab]);
+
+  const totalPages = Math.ceil(filteredOrders.length / itemsPerPage);
+  const paginatedOrders = filteredOrders.slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
+  );
 
   const handleEmailReceipt = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -184,7 +197,7 @@ function OrdersLogContent() {
                   </td>
                 </tr>
               ) : (
-                filteredOrders.map((order) => {
+                paginatedOrders.map((order) => {
                   const table = tables.find((t) => t.id === order.tableId);
                   const itemCount = order.items.reduce((s, i) => s + i.quantity, 0);
                   
@@ -283,7 +296,7 @@ function OrdersLogContent() {
                                   onClick={() => setRefundingOrder(order)}
                                   className="flex items-center gap-1.5 px-3 py-1.5 border border-amber-200 dark:border-amber-900/40 hover:bg-amber-50 dark:hover:bg-amber-950/20 text-amber-600 dark:text-amber-400 rounded-xl font-bold text-xs transition-colors"
                                 >
-                                  <RefreshCcw className="size-3" /> Refund / Void
+                                  <RefreshCcw className="size-3" /> Refund
                                 </button>
                               )}
                             </>
@@ -297,6 +310,62 @@ function OrdersLogContent() {
             </tbody>
           </table>
         </div>
+
+        {/* Pagination Controls */}
+        {filteredOrders.length > 20 && (
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-4 px-6 py-4 border-t border-stone-100 dark:border-stone-800 bg-stone-50/50 dark:bg-stone-900/40">
+            <span className="text-xs text-stone-500 font-medium">
+              Showing <span className="font-bold text-stone-800 dark:text-stone-200">{Math.min(filteredOrders.length, (currentPage - 1) * itemsPerPage + 1)}-{Math.min(filteredOrders.length, currentPage * itemsPerPage)}</span> of <span className="font-bold text-stone-800 dark:text-stone-200">{filteredOrders.length}</span> orders
+            </span>
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                disabled={currentPage === 1}
+                onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                className="p-2 border border-stone-200 dark:border-stone-800 rounded-xl hover:bg-stone-100 dark:hover:bg-stone-850 text-stone-600 dark:text-stone-300 disabled:opacity-40 transition-all cursor-pointer active:scale-95"
+              >
+                <ChevronLeft className="size-4" />
+              </button>
+              {Array.from({ length: totalPages }, (_, idx) => {
+                const pageNum = idx + 1;
+                if (totalPages > 5) {
+                  if (pageNum !== 1 && pageNum !== totalPages && Math.abs(pageNum - currentPage) > 1) {
+                    if (pageNum === 2 && currentPage > 3) {
+                      return <span key="ellipsis-left" className="px-2 text-stone-400">...</span>;
+                    }
+                    if (pageNum === totalPages - 1 && currentPage < totalPages - 2) {
+                      return <span key="ellipsis-right" className="px-2 text-stone-400">...</span>;
+                    }
+                    return null;
+                  }
+                }
+                return (
+                  <button
+                    key={pageNum}
+                    type="button"
+                    onClick={() => setCurrentPage(pageNum)}
+                    className={cn(
+                      "w-8 h-8 rounded-xl font-bold text-xs transition-all cursor-pointer active:scale-95",
+                      currentPage === pageNum
+                        ? "bg-primary text-white shadow-sm"
+                        : "border border-transparent text-stone-600 dark:text-stone-400 hover:bg-stone-100 dark:hover:bg-stone-800"
+                    )}
+                  >
+                    {pageNum}
+                  </button>
+                );
+              })}
+              <button
+                type="button"
+                disabled={currentPage === totalPages}
+                onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                className="p-2 border border-stone-200 dark:border-stone-800 rounded-xl hover:bg-stone-100 dark:hover:bg-stone-850 text-stone-600 dark:text-stone-300 disabled:opacity-40 transition-all cursor-pointer active:scale-95"
+              >
+                <ChevronRight className="size-4" />
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* ── Modal: Order Details ── */}
